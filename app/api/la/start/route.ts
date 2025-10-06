@@ -1,14 +1,7 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { callOneSignal, methodGuard } from '../../lib/onesignal';
+import { callOneSignal, methodGuard } from '../../../lib/onesignal';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const guard = methodGuard(req.method || 'GET', ['POST']);
-  if (!guard.isAllowed) {
-    res.setHeader('Allow', guard.allowHeader);
-    return res.status(405).json({ ok: false, error: 'METHOD_NOT_ALLOWED' });
-  }
-
-  const incoming = (typeof req.body === 'object' && req.body) ? req.body : {};
+export async function POST(request: Request) {
+  const incoming = await request.json().catch(() => ({}));
   
   // Include only the fields your iOS client sends/needs
   const payload = {
@@ -30,5 +23,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const result = await callOneSignal('start', payload);
   const status = result.status ?? (result.ok ? 200 : 500);
-  return res.status(status).json(result);
+  return Response.json(result, { status });
+}
+
+export async function GET() {
+  // Method not allowed
+  return new Response(JSON.stringify({ ok: false, error: 'METHOD_NOT_ALLOWED' }), {
+    status: 405,
+    headers: { 'Allow': 'POST', 'Content-Type': 'application/json' },
+  });
 }
