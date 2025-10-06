@@ -1,94 +1,34 @@
-                                                                                                                         `mmmexport` const config = {
-  runtime: "edge",
-}
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { callOneSignal, methodGuard } from '../../lib/onesignal';
 
-interface StartRequestBody {
-  activityId: string
-  laPushToken: string
-  contentState?: {
-    soc?: number
-    watts?: number
-    timeToFullMinutes?: number
-    isCharging?: boolean
-  }
-}
-
-export default async function handler(req: Request) {
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { "Content-Type": "application/json" },
-    })
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const guard = methodGuard(req.method || 'GET', ['POST']);
+  if (!guard.isAllowed) {
+    res.setHeader('Allow', guard.allowHeader);
+    return res.status(405).json({ ok: false, error: 'METHOD_NOT_ALLOWED' });
   }
 
-  const appId = process.env.ONESIGNAL_APP_ID
-  const apiKey = process.env.ONESIGNAL_REST_API_KEY
-
-  if (!appId || !apiKey) {
-    return new Response(JSON.stringify({ error: "Missing OneSignal credentials" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    })
-  }
-
-  try {
-    const body: StartRequestBody = await req.json()
-    const { activityId, laPushToken, contentState } = body
-
-    if (!activityId || !laPushToken) {
-      return new Response(JSON.stringify({ error: "Missing activityId or laPushToken" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      })
-    }
-
-    const payload = {
-      name: "petl-session",
-      activity_id: activityId,
-      device_push_token: laPushToken,
-      event: "start",
-      event_updates: {
-        "content-state": contentState || {
-          soc: 90,
-          watts: 7.8,
-          timeToFullMinutes: 14,
-          isCharging: true,
-        },
+  const incoming = (typeof req.body === 'object' && req.body) ? req.body : {};
+  
+  // Include only the fields your iOS client sends/needs
+  const payload = {
+    action: 'start',
+    activityId: incoming.activityId ?? null,
+    laPushTokenHex: incoming.laPushToken ?? null,
+    state: incoming.contentState ?? null,
+    name: "petl-session",
+    event: "start",
+    event_updates: {
+      "content-state": incoming.contentState || {
+        soc: 90,
+        watts: 7.8,
+        timeToFullMinutes: 14,
+        isCharging: true,
       },
-    }
+    },
+  };
 
-    const response = await fetch(`https://api.onesignal.com/apps/${appId}/live_activities`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${btoa(apiKey + ':')}`,
-      },
-      body: JSON.stringify(payload),
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      return new Response(JSON.stringify({ error: "OneSignal API error", details: data }), {
-        status: response.status,
-        headers: { "Content-Type": "application/json" },
-      })
-    }
-
-    return new Response(JSON.stringify({ success: true, data }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    })
-  } catch (error) {
-    return new Response(
-      JSON.stringify({
-        error: "Internal server error",
-        message: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
-    )
-  }
+  const result = await callOneSignal('start', payload);
+  const status = result.status ?? (result.ok ? 200 : 500);
+  return res.status(status).json(result);
 }
