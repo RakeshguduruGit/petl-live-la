@@ -58,7 +58,7 @@ export default async function handler(req: Request) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Basic ${btoa(apiKey + ':')}`,
+          "X-API-Key": apiKey,
         },
         body: JSON.stringify(payload),
       },
