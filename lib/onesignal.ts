@@ -77,7 +77,7 @@ export async function callOneSignal(
     const res = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${restKey}`,
+        'Authorization': `Basic ${Buffer.from(restKey + ':').toString('base64')}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),

@@ -27,7 +27,7 @@ export async function GET() {
       const response = await fetch(testUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Basic ${restKey}`,
+          'Authorization': `Basic ${Buffer.from(restKey + ':').toString('base64')}`,
           'Content-Type': 'application/json',
         },
       });
