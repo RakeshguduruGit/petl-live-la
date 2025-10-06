@@ -3,11 +3,23 @@ import { callOneSignal, methodGuard } from '../../../../lib/onesignal';
 export async function POST(request: Request) {
   const incoming = await request.json().catch(() => ({}));
   
-  // Include only the fields your iOS client sends/needs
+  // Log incoming request for debugging
+  console.log(`[End] Incoming request keys: ${Object.keys(incoming).join(', ')}`);
+  console.log(`[End] Activity ID: ${incoming.activityId}`);
+  
+  // Validate required fields
+  if (!incoming.activityId) {
+    return Response.json({
+      ok: false,
+      status: 400,
+      error: 'Missing required field: activityId',
+      details: null
+    }, { status: 400 });
+  }
+  
+  // Prepare payload for OneSignal Live Activity end
   const payload = {
-    action: 'end',
-    activityId: incoming.activityId ?? null,
-    event: "end",
+    activityId: incoming.activityId,
   };
 
   const result = await callOneSignal('end', payload);
