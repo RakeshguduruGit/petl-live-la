@@ -1,4 +1,4 @@
-import { callOneSignal, methodGuard } from '@/lib/onesignal';
+import { callOneSignal, methodGuard } from '../../../../lib/onesignal';
 
 export async function POST(request: Request) {
   const incoming = await request.json().catch(() => ({}));
