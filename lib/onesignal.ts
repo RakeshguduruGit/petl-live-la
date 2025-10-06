@@ -38,30 +38,42 @@ export async function callOneSignal(
     url = `https://api.onesignal.com/apps/${appId}/live_activities/${activityId}/notifications`;
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${restKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${restKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
 
-  if (!res.ok) {
+    if (!res.ok) {
+      // Throttle repeated error logs per route
+      const now = Date.now();
+      const key = `err:${routeName}`;
+      const last = lastErrorAt.get(key) ?? 0;
+      if (now - last > ERROR_BACKOFF_MS) {
+        lastErrorAt.set(key, now);
+        const text = await res.text().catch(() => '');
+        console.error(`[OneSignal ${routeName}] ${res.status}: ${text.slice(0, 500)}`);
+      }
+      return { ok: false, status: res.status, error: 'ONESIGNAL_ERROR', details: null };
+    }
+
+    const data = await res.json().catch(() => ({}));
+    return { ok: true, status: res.status, data };
+  } catch (error) {
     // Throttle repeated error logs per route
     const now = Date.now();
     const key = `err:${routeName}`;
     const last = lastErrorAt.get(key) ?? 0;
     if (now - last > ERROR_BACKOFF_MS) {
       lastErrorAt.set(key, now);
-      const text = await res.text().catch(() => '');
-      console.error(`[OneSignal ${routeName}] ${res.status}: ${text.slice(0, 500)}`);
+      console.error(`[OneSignal ${routeName}] Network error:`, error);
     }
-    return { ok: false, status: res.status, error: 'ONESIGNAL_ERROR', details: null };
+    return { ok: false, status: 500, error: 'NETWORK_ERROR', details: null };
   }
-
-  const data = await res.json().catch(() => ({}));
-  return { ok: true, status: res.status, data };
 }
 
 // Utility: uniform method guard
