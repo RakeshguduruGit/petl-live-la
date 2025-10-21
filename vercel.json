@@ -1,8 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/push-updates",
-      "schedule": "*/5 * * * *"
+      "path": "/api/cron/send-silent-push",
+      "schedule": "*/3 * * * *"
     }
   ]
 }
