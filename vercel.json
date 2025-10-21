@@ -1,1 +1,8 @@
-{}
+{
+  "crons": [
+    {
+      "path": "/api/cron/push-updates",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
