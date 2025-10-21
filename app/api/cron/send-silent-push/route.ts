@@ -13,6 +13,17 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, error: 'Missing credentials' }, { status: 500 });
   }
 
+  const payload = {
+    app_id: appId,
+    filters: [{ field: 'tag', key: 'charging', relation: '=', value: 'true' }],
+    content_available: true,
+    priority: 10,
+    ttl: 180,
+    data: { type: 'petl-bg-update', timestamp: new Date().toISOString() },
+  };
+
+  console.log('[Cron] Sending silent push with payload:', JSON.stringify(payload));
+
   try {
     const response = await fetch('https://api.onesignal.com/notifications', {
       method: 'POST',
@@ -20,19 +31,22 @@ export async function GET(request: Request) {
         'Content-Type': 'application/json',
         'Authorization': `Key ${restKey}`,
       },
-      body: JSON.stringify({
-        app_id: appId,
-        filters: [{ field: 'tag', key: 'charging', relation: '=', value: 'true' }],
-        content_available: true,
-        priority: 10,
-        ttl: 180,
-        data: { type: 'petl-bg-update', timestamp: new Date().toISOString() },
-      }),
+      body: JSON.stringify(payload),
     });
 
     const result = await response.json();
+    
+    console.log('[Cron] OneSignal response:', JSON.stringify(result));
+    console.log(`[Cron] Recipients: ${result.recipients || 0}, ID: ${result.id || 'none'}`);
+    
+    if (!response.ok) {
+      console.error('[Cron] OneSignal error:', result);
+      return Response.json({ ok: false, error: 'OneSignal error', details: result }, { status: response.status });
+    }
+
     return Response.json({ ok: true, recipients: result.recipients || 0, id: result.id });
   } catch (error: any) {
+    console.error('[Cron] Fetch error:', error.message);
     return Response.json({ ok: false, error: error.message }, { status: 500 });
   }
 }
