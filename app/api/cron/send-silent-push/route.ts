@@ -6,12 +6,15 @@ export async function GET(request: Request) {
     return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const appId = process.env.ONESIGNAL_APP_ID;
-  const restKey = process.env.ONESIGNAL_REST_API_KEY;
+  const appId = process.env.ONESIGNAL_APP_ID?.trim();
+  const restKey = process.env.ONESIGNAL_REST_API_KEY?.trim();
 
   if (!appId || !restKey) {
     return Response.json({ ok: false, error: 'Missing credentials' }, { status: 500 });
   }
+
+  console.log(`[Cron] Using App ID: ${appId.substring(0, 8)}... (length: ${appId.length})`);
+  console.log(`[Cron] Using REST Key: ${restKey.substring(0, 15)}... (length: ${restKey.length})`);
 
   const payload = {
     app_id: appId,
