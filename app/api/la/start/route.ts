@@ -80,13 +80,14 @@ export async function POST(request: Request) {
     
     if (appId && restKey) {
       try {
-        const tagResponse = await fetch(`https://api.onesignal.com/apps/${appId}/users/${playerId}`, {
+        const tagResponse = await fetch(`https://api.onesignal.com/players/${playerId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Key ${restKey}`,
           },
           body: JSON.stringify({
+            app_id: appId,
             tags: { charging: 'true' }
           }),
         });
