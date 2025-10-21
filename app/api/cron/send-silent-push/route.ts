@@ -18,7 +18,7 @@ export async function GET(request: Request) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${restKey}`,
+        'Authorization': `Key ${restKey}`,
       },
       body: JSON.stringify({
         app_id: appId,
