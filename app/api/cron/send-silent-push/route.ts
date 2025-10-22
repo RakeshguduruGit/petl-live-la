@@ -40,14 +40,24 @@ export async function GET(request: Request) {
     const result = await response.json();
     
     console.log('[Cron] OneSignal response:', JSON.stringify(result));
-    console.log(`[Cron] Recipients: ${result.recipients || 0}, ID: ${result.id || 'none'}`);
     
     if (!response.ok) {
       console.error('[Cron] OneSignal error:', result);
       return Response.json({ ok: false, error: 'OneSignal error', details: result }, { status: response.status });
     }
 
-    return Response.json({ ok: true, recipients: result.recipients || 0, id: result.id });
+    // For silent pushes, OneSignal doesn't return recipients count
+    // If we get an ID and no errors, the push was sent successfully
+    const hasId = result.id && result.id !== '';
+    const hasErrors = result.errors && result.errors.length > 0;
+    
+    if (hasId && !hasErrors) {
+      console.log(`[Cron] ✅ Silent push sent successfully! ID: ${result.id}`);
+      return Response.json({ ok: true, recipients: 'sent', id: result.id, message: 'Silent push sent to tagged devices' });
+    } else {
+      console.log(`[Cron] ❌ Silent push failed. ID: ${result.id || 'none'}, Errors: ${JSON.stringify(result.errors || [])}`);
+      return Response.json({ ok: false, error: 'Push failed', details: result }, { status: 500 });
+    }
   } catch (error: any) {
     console.error('[Cron] Fetch error:', error.message);
     return Response.json({ ok: false, error: error.message }, { status: 500 });
