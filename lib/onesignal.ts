@@ -26,58 +26,93 @@ export async function callOneSignal(
   let payload: any = {};
 
   if (routeName === 'start') {
-    // Start Live Activity - use notifications API with Live Activity targeting
-    url = `https://api.onesignal.com/apps/${appId}/notifications`;
-    payload = {
-      app_id: appId,
-      name: body.name || "petl-session",
-      activity_id: body.activityId,
-      device_push_token: body.laPushToken,
-      event: "start",
-      event_updates: body.event_updates || {
-        "content-state": body.state || {
-          soc: 90,
-          watts: 7.8,
-          timeToFullMinutes: 14,
-          isCharging: true,
-        },
-      },
-    };
-  } else {
-    // Update/End Live Activity
+    // Start Live Activity - use the correct Live Activities endpoint
     const activityId = body.activityId;
     if (!activityId) {
       return {
         ok: false,
         status: 400,
-        error: 'Missing activityId for update/end operations',
+        error: 'Missing activityId for start operation',
         details: null,
       };
     }
     url = `https://api.onesignal.com/apps/${appId}/live_activities/${activityId}/notifications`;
     payload = {
-      app_id: appId,
-      event: routeName,
-      event_updates: body.event_updates || {
-        "content-state": body.state || {
-          soc: 85,
-          watts: 7.5,
-          timeToFullMinutes: 18,
-          isCharging: true,
-        },
+      event: "start",
+      name: body.name || "petl-la-start",
+      event_updates: body.state || {
+        soc: 90,
+        watts: 7.8,
+        timeToFullMinutes: 14,
+        isCharging: true,
       },
     };
+  } else if (routeName === 'update') {
+    // Update Live Activity
+    const activityId = body.activityId;
+    if (!activityId) {
+      return {
+        ok: false,
+        status: 400,
+        error: 'Missing activityId for update operation',
+        details: null,
+      };
+    }
+    url = `https://api.onesignal.com/apps/${appId}/live_activities/${activityId}/notifications`;
+    payload = {
+      event: 'update',
+      name: 'petl-la-update',
+      event_updates: body.state || {
+        soc: 85,
+        watts: 7.5,
+        timeToFullMinutes: 18,
+        isCharging: true,
+      },
+    };
+  } else {
+    // End Live Activity
+    const activityId = body.activityId;
+    if (!activityId) {
+      return {
+        ok: false,
+        status: 400,
+        error: 'Missing activityId for end operation',
+        details: null,
+      };
+    }
+    url = `https://api.onesignal.com/apps/${appId}/live_activities/${activityId}/notifications`;
+    
+    // OneSignal requires event_updates with content state even for end
+    // Use provided state or minimal valid state
+    const endState = body.state || {
+      soc: 0,
+      watts: 0,
+      timeToFullMinutes: 0,
+      isCharging: false,
+    };
+    
+    payload = {
+      event: 'end',
+      name: 'petl-la-end',
+      event_updates: endState,
+    };
+    
+    // Add dismissalDate if provided
+    if (body.dismissalDate) {
+      payload.dismissal_date = body.dismissalDate;
+    }
   }
 
   // Log the outbound request (without secrets)
   console.log(`[OneSignal ${routeName}] URL: ${url}`);
   console.log(`[OneSignal ${routeName}] Payload keys: ${Object.keys(payload).join(', ')}`);
+  console.log(`[OneSignal ${routeName}] Payload: ${JSON.stringify(payload)}`);
 
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${restKey}`,
+        'Authorization': `Key ${restKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
@@ -113,8 +148,14 @@ export async function callOneSignal(
       };
     }
 
-    const data = responseText ? JSON.parse(responseText) : {};
-    return { ok: true, status: res.status, data };
+           const data = responseText ? JSON.parse(responseText) : {};
+           
+           // Log OneSignal response ID for production monitoring
+           if (data.id) {
+             console.log(`[OneSignal ${routeName}] Success - Response ID: ${data.id}`);
+           }
+           
+           return { ok: true, status: res.status, data };
   } catch (error) {
     // Throttle repeated error logs per route
     const now = Date.now();
