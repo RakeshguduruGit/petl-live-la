@@ -1,6 +1,5 @@
 import { callOneSignal, methodGuard } from '../../../../lib/onesignal';
 import { randomUUID } from 'crypto';
-import { sessionStore } from '../../../../lib/session-store';
 
 /**
  * POST /api/la/start
@@ -52,29 +51,9 @@ export async function POST(request: Request) {
   
   console.log(`[Start:${requestId}] activityId=${incoming.activityId} playerId=${playerId ? playerId.substring(0, 8) + '...' : 'none'}`);
   
-  // Store session for background updates (if playerId provided)
+  // 🔥 SERVER-SIDE TAG: Immediately tag device as charging using OneSignal REST API
+  // This guarantees the tag is available for cron filtering without waiting for SDK sync
   if (playerId) {
-    const state = incoming.contentState || {
-      soc: 90,
-      watts: 7.8,
-      timeToFullMinutes: 14,
-      isCharging: true,
-    };
-    
-    sessionStore.set({
-      activityId: incoming.activityId,
-      playerId: playerId,
-      startedAt: Date.now(),
-      lastUpdate: Date.now(),
-      soc: state.soc,
-      watts: state.watts,
-      timeToFullMinutes: state.timeToFullMinutes,
-    });
-    
-    console.log(`[Start:${requestId}] Session stored - total active sessions: ${sessionStore.count()}`);
-    
-    // 🔥 SERVER-SIDE TAG: Immediately tag device as charging using OneSignal REST API
-    // This guarantees the tag is available for cron filtering without waiting for SDK sync
     const appId = process.env.ONESIGNAL_APP_ID?.trim();
     const restKey = process.env.ONESIGNAL_REST_API_KEY?.trim();
     

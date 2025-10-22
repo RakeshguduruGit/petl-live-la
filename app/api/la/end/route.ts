@@ -1,6 +1,5 @@
 import { callOneSignal, methodGuard } from '../../../../lib/onesignal';
 import { randomUUID } from 'crypto';
-import { sessionStore } from '../../../../lib/session-store';
 
 /**
  * POST /api/la/end
@@ -51,15 +50,8 @@ export async function POST(request: Request) {
   const immediate = incoming.immediate !== false; // Default to true
   console.log(`[End:${requestId}] activityId=${incoming.activityId} immediate=${immediate}`);
   
-  // Get session BEFORE deleting (need playerId for tag removal)
-  const session = sessionStore.get(incoming.activityId);
-  const playerId = session?.playerId || incoming.meta?.playerId;
-  
-  // Remove session from store (stops background updates)
-  const removed = sessionStore.delete(incoming.activityId);
-  if (removed) {
-    console.log(`[End:${requestId}] Session removed - remaining active sessions: ${sessionStore.count()}`);
-  }
+  // Get playerId from request metadata for tag removal
+  const playerId = incoming.meta?.playerId;
   
   // 🔥 SERVER-SIDE TAG REMOVAL: Remove "charging" tag using OneSignal REST API
   if (playerId) {
