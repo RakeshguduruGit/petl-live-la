@@ -20,9 +20,14 @@ export async function GET(request: Request) {
     app_id: appId,
     filters: [{ field: 'tag', key: 'charging', relation: '=', value: 'true' }],
     content_available: true,
-    priority: 10,
-    ttl: 180,
+    // CRITICAL: These headers tell APNs this is a background push
+    apns_push_type_override: 'background',
+    ios_interruption_level: 'passive',
+    mutable_content: false,
+    // Background priority (5), not high priority (10)
+    priority: 5,
     data: { type: 'petl-bg-update', timestamp: new Date().toISOString() },
+    ttl: 300,  // 5 minutes TTL (increased from 180 for better delivery)
   };
 
   console.log('[Cron] Sending silent push with payload:', JSON.stringify(payload));
