@@ -12,7 +12,7 @@
  * Security: Validates CRON_SECRET header
  */
 
-import { getAllActiveActivities, cleanupStaleActivities } from '../../../../lib/session-store';
+import { getAllActiveActivities, cleanupStaleActivities, removeActivity } from '../../../../lib/session-store';
 import { callOneSignal } from '../../../../lib/onesignal';
 
 export async function GET(request: Request) {
@@ -47,29 +47,42 @@ export async function GET(request: Request) {
   console.log(`[Cron] Found ${activeActivities.length} active activities to update`);
 
   // Send updates to all active activities
+  // If isCharging is false, send 'end' event to dismiss the Live Activity
   const results = await Promise.allSettled(
     activeActivities.map(async (session) => {
       try {
-        const result = await callOneSignal('update', {
+        // Check if device is unplugged - if so, end the Live Activity
+        const shouldEnd = !session.state.isCharging;
+        
+        const result = await callOneSignal(shouldEnd ? 'end' : 'update', {
           activityId: session.activityId,
-          state: session.state
+          state: session.state,
+          dismissalDate: shouldEnd ? Math.floor(Date.now() / 1000) - 10 : undefined  // Past timestamp for immediate dismissal
         });
 
         if (result.ok) {
-          console.log(`[Cron] ✅ Updated activityId=${session.activityId.substring(0, 8)}... soc=${session.state.soc}%`);
+          if (shouldEnd) {
+            console.log(`[Cron] ✅ Ended activityId=${session.activityId.substring(0, 8)}... (device unplugged)`);
+            // Remove from session store after successful end
+            removeActivity(session.activityId);
+          } else {
+            console.log(`[Cron] ✅ Updated activityId=${session.activityId.substring(0, 8)}... soc=${session.state.soc}%`);
+          }
         } else {
-          console.error(`[Cron] ❌ Failed to update activityId=${session.activityId.substring(0, 8)}... error=${result.error}`);
+          console.error(`[Cron] ❌ Failed to ${shouldEnd ? 'end' : 'update'} activityId=${session.activityId.substring(0, 8)}... error=${result.error}`);
         }
 
         return {
           activityId: session.activityId,
+          action: shouldEnd ? 'end' : 'update',
           success: result.ok,
           error: result.ok ? null : result.error
         };
       } catch (error: any) {
-        console.error(`[Cron] ❌ Exception updating activityId=${session.activityId.substring(0, 8)}... error=${error.message}`);
+        console.error(`[Cron] ❌ Exception processing activityId=${session.activityId.substring(0, 8)}... error=${error.message}`);
         return {
           activityId: session.activityId,
+          action: 'error',
           success: false,
           error: error.message
         };
