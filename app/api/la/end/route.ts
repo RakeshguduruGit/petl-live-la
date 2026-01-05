@@ -1,4 +1,5 @@
 import { callOneSignal, methodGuard } from '../../../../lib/onesignal';
+import { removeActivity } from '../../../../lib/session-store';
 import { randomUUID } from 'crypto';
 
 /**
@@ -101,6 +102,11 @@ export async function POST(request: Request) {
 
   const result = await callOneSignal('end', payload);
   const status = result.status ?? (result.ok ? 200 : 500);
+  
+  // Remove activity from store (stops cron-based updates)
+  if (result.ok) {
+    removeActivity(incoming.activityId);
+  }
   
   console.log(`[End:${requestId}] result=${result.ok ? 'ok' : 'error'}`);
   

@@ -1,4 +1,5 @@
 import { callOneSignal, methodGuard } from '../../../../lib/onesignal';
+import { storeActivityState } from '../../../../lib/session-store';
 import { randomUUID } from 'crypto';
 
 /**
@@ -59,6 +60,16 @@ export async function POST(request: Request) {
 
   const result = await callOneSignal('update', payload);
   const status = result.status ?? (result.ok ? 200 : 500);
+  
+  // Store activity state for cron-based direct updates
+  if (result.ok) {
+    const playerId = incoming.meta?.playerId;
+    if (playerId) {
+      storeActivityState(incoming.activityId, playerId, state);
+    } else {
+      console.log(`[Update:${requestId}] ⚠️ No playerId - state not stored for cron updates`);
+    }
+  }
   
   console.log(`[Update:${requestId}] result=${result.ok ? 'ok' : 'error'}`);
   

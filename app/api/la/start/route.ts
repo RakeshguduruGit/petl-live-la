@@ -1,4 +1,5 @@
 import { callOneSignal, methodGuard } from '../../../../lib/onesignal';
+import { storeActivityState } from '../../../../lib/session-store';
 import { randomUUID } from 'crypto';
 
 /**
@@ -98,6 +99,11 @@ export async function POST(request: Request) {
   // Use the update logic since we're just sending an initial update
   const result = await callOneSignal('update', payload);
   const status = result.status ?? (result.ok ? 200 : 500);
+  
+  // Store activity state for cron-based direct updates
+  if (result.ok && playerId) {
+    storeActivityState(incoming.activityId, playerId, payload.state);
+  }
   
   console.log(`[Start:${requestId}] result=${result.ok ? 'ok' : 'error'}`);
   
