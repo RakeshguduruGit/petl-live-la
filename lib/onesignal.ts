@@ -2,7 +2,7 @@ const ERROR_BACKOFF_MS = 5 * 60 * 1000;
 const lastErrorAt = new Map<string, number>();
 
 export async function callOneSignal(
-  routeName: 'start' | 'update' | 'end',
+  routeName: 'update' | 'end',
   body: Record<string, unknown>
 ) {
   const appId = process.env.ONESIGNAL_APP_ID;
@@ -25,29 +25,7 @@ export async function callOneSignal(
   let url = '';
   let payload: any = {};
 
-  if (routeName === 'start') {
-    // Start Live Activity - use the correct Live Activities endpoint
-    const activityId = body.activityId;
-    if (!activityId) {
-      return {
-        ok: false,
-        status: 400,
-        error: 'Missing activityId for start operation',
-        details: null,
-      };
-    }
-    url = `https://api.onesignal.com/apps/${appId}/live_activities/${activityId}/notifications`;
-    payload = {
-      event: "start",
-      name: body.name || "petl-la-start",
-      event_updates: body.state || {
-        soc: 90,
-        watts: 7.8,
-        timeToFullMinutes: 14,
-        isCharging: true,
-      },
-    };
-  } else if (routeName === 'update') {
+  if (routeName === 'update') {
     // Update Live Activity
     const activityId = body.activityId;
     if (!activityId) {
