@@ -19,15 +19,11 @@ export async function GET(request: Request) {
   const payload = {
     app_id: appId,
     filters: [{ field: 'tag', key: 'charging', relation: '=', value: 'true' }],
+    // Silent push: content_available=true with no title/body makes it a background push
     content_available: true,
-    // CRITICAL: These headers tell APNs this is a background push
-    apns_push_type_override: 'background',
-    ios_interruption_level: 'passive',
-    mutable_content: false,
-    // Background priority (5), not high priority (10)
-    priority: 5,
+    // No title/body = silent notification (OneSignal automatically sets APNs push type to background)
     data: { type: 'petl-bg-update', timestamp: new Date().toISOString() },
-    ttl: 300,  // 5 minutes TTL (increased from 180 for better delivery)
+    ttl: 300,  // 5 minutes TTL
   };
 
   console.log('[Cron] Sending silent push with payload:', JSON.stringify(payload));
