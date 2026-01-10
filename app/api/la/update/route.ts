@@ -77,10 +77,14 @@ export async function POST(request: Request) {
     console.log(`[Update:${requestId}] ✅ Found push_token in session store (length: ${pushToken.length})`);
   }
   
+  // Get playerId from session store or request meta
+  const playerId = existingActivity?.playerId || incoming.meta?.playerId;
+  
   const payload = {
     activityId: incoming.activityId,
     state: state,
     pushToken: pushToken || undefined,  // Include push_token if available
+    playerId: playerId || undefined,    // Include playerId for targeting
   };
 
   const result = await callOneSignal('update', payload);
