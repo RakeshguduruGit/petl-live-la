@@ -53,9 +53,20 @@ export async function POST(request: Request) {
     isCharging: true,
   };
   
+  // Get push_token from session store (required for OneSignal to deliver update)
+  const existingActivity = getActivity(incoming.activityId);
+  const pushToken = existingActivity?.pushToken;
+  
+  if (!pushToken) {
+    console.log(`[Update:${requestId}] ⚠️ No push_token found in session store for activity ${incoming.activityId.substring(0, 8)}... - OneSignal will return "No Recipients"`);
+  } else {
+    console.log(`[Update:${requestId}] ✅ Found push_token in session store (length: ${pushToken.length})`);
+  }
+  
   const payload = {
     activityId: incoming.activityId,
     state: state,
+    pushToken: pushToken || undefined,  // Include push_token if available
   };
 
   const result = await callOneSignal('update', payload);

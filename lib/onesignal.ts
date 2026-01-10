@@ -47,6 +47,14 @@ export async function callOneSignal(
         isCharging: true,
       },
     };
+    
+    // CRITICAL: Include push_token if provided - required for OneSignal to deliver update
+    if (body.pushToken) {
+      payload.push_token = body.pushToken;
+      console.log(`[OneSignal ${routeName}] ✅ Including push_token in payload (length: ${body.pushToken.length})`);
+    } else {
+      console.log(`[OneSignal ${routeName}] ⚠️ WARNING: No push_token in payload - OneSignal will return "No Recipients"`);
+    }
   } else {
     // End Live Activity
     const activityId = body.activityId;
