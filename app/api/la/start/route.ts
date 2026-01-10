@@ -51,6 +51,33 @@ export async function POST(request: NextRequest) {
     // Forward to OneSignal Live Activity API
     // Format matches iOS app's OneSignalClient.swift implementation
     console.log(`[LA/START] 📤 Forwarding to OneSignal for activity ${activityId.substring(0, 8)}...`);
+    
+    // Build payload - include targeting if possible
+    const payload: any = {
+      push_token: laPushToken,
+      event: 'update',  // Use 'update' since activity is created locally first (event: 'start' is for push-to-start only)
+      name: 'petl-la-update',
+      // Event updates (dynamic data)
+      event_updates: {
+        soc: contentState.soc,
+        watts: contentState.watts,
+        timeToFullMinutes: contentState.timeToFullMinutes,
+        isCharging: contentState.isCharging
+      },
+      priority: 5
+    };
+    
+    // Include player_id for targeting if available (don't include empty array)
+    if (playerId) {
+      payload.include_player_ids = [playerId];
+      console.log(`[LA/START] Including include_player_ids: [${playerId.substring(0, 8)}...]`);
+    } else {
+      console.log(`[LA/START] ⚠️ No playerId available - relying solely on push_token for targeting`);
+    }
+    
+    console.log(`[LA/START] Payload keys: ${Object.keys(payload).join(', ')}`);
+    console.log(`[LA/START] Payload push_token present: ${!!payload.push_token}, length: ${payload.push_token?.length || 0}`);
+    
     const response = await fetch(
       `https://api.onesignal.com/apps/${ONESIGNAL_APP_ID}/live_activities/${activityId}/notifications`,
       {
@@ -59,21 +86,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
           'Authorization': `Key ${ONESIGNAL_REST_API_KEY}`
         },
-        body: JSON.stringify({
-          push_token: laPushToken,
-          event: 'update',  // Use 'update' since activity is created locally first (event: 'start' is for push-to-start only)
-          name: 'petl-la-update',
-          // Include player_id for targeting (even if player lookup fails, OneSignal might use it for routing)
-          include_player_ids: playerId ? [playerId] : [],
-          // Event updates (dynamic data)
-          event_updates: {
-            soc: contentState.soc,
-            watts: contentState.watts,
-            timeToFullMinutes: contentState.timeToFullMinutes,
-            isCharging: contentState.isCharging
-          },
-          priority: 5
-        })
+        body: JSON.stringify(payload)
       }
     );
 
