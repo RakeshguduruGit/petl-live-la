@@ -54,12 +54,26 @@ export async function POST(request: Request) {
   };
   
   // Get push_token from session store (required for OneSignal to deliver update)
+  // Fallback: Check if iOS app sent push_token in request (for activities started before START fix)
   const existingActivity = getActivity(incoming.activityId);
-  const pushToken = existingActivity?.pushToken;
+  let pushToken = existingActivity?.pushToken;
+  
+  // Fallback: If not in session store, check if iOS app sent it in the request
+  if (!pushToken && incoming.laPushToken) {
+    pushToken = incoming.laPushToken;
+    console.log(`[Update:${requestId}] ✅ Using push_token from iOS app request (length: ${pushToken.length})`);
+    // Store it in session store for future updates
+    const playerId = incoming.meta?.playerId;
+    if (playerId) {
+      storeActivity(incoming.activityId, playerId, pushToken, state);
+      console.log(`[Update:${requestId}] ✅ Stored activity in session store from UPDATE request`);
+    }
+  }
   
   if (!pushToken) {
-    console.log(`[Update:${requestId}] ⚠️ No push_token found in session store for activity ${incoming.activityId.substring(0, 8)}... - OneSignal will return "No Recipients"`);
-  } else {
+    console.log(`[Update:${requestId}] ⚠️ No push_token found in session store or request for activity ${incoming.activityId.substring(0, 8)}... - OneSignal will return "No Recipients"`);
+    console.log(`[Update:${requestId}] 💡 To fix: Restart the Live Activity so START endpoint can store push_token in session store`);
+  } else if (existingActivity) {
     console.log(`[Update:${requestId}] ✅ Found push_token in session store (length: ${pushToken.length})`);
   }
   
