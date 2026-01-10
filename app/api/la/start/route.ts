@@ -130,20 +130,55 @@ export async function POST(request: NextRequest) {
       });
 
       if (!tagResponse.ok) {
-        const tagError = await tagResponse.json();
-        console.error('[LA/START] ⚠️ Failed to set activity_id tag:', JSON.stringify(tagError, null, 2));
+        // Check content type before trying to parse as JSON
+        const contentType = tagResponse.headers.get('content-type') || '';
+        let errorMessage = `HTTP ${tagResponse.status} ${tagResponse.statusText}`;
+        
+        if (contentType.includes('application/json')) {
+          try {
+            const tagError = await tagResponse.json();
+            errorMessage = JSON.stringify(tagError, null, 2);
+          } catch (e) {
+            // Fallback if JSON parse fails
+            const text = await tagResponse.text().catch(() => '');
+            errorMessage = `Response (${text.substring(0, 200)}...)`;
+          }
+        } else {
+          // Response is HTML or other non-JSON format (likely 404 page)
+          const text = await tagResponse.text().catch(() => '');
+          if (tagResponse.status === 404) {
+            console.warn(`[LA/START] ⚠️ Player ${playerId.substring(0, 8)}... not found in OneSignal (404). This is expected if the player hasn't been created yet via OneSignal SDK. Tags cannot be set until the player exists.`);
+            console.warn(`[LA/START] 💡 Note: Session store already has push_token, so cron job will work. Player tags are optional for Live Activities.`);
+            // Don't log as error - this is expected and non-critical
+            // Continue execution - Live Activity registration already succeeded
+          } else {
+            console.error(`[LA/START] ⚠️ Failed to set tags - OneSignal returned HTML/error page (status: ${tagResponse.status})`);
+            console.error(`[LA/START] Response preview: ${text.substring(0, 200)}...`);
+          }
+        }
+        
+        console.error('[LA/START] ⚠️ Failed to set activity_id tag:', errorMessage);
         console.error('[LA/START] Tag response status:', tagResponse.status, tagResponse.statusText);
         console.error('[LA/START] Player ID used:', playerId);
         // Don't fail the request if tag update fails - Live Activity is still registered
       } else {
-        const tagResult = await tagResponse.json().catch(() => ({}));
-        console.log(`[LA/START] ✅ Stored activity_id ${activityId.substring(0, 8)}... and push_token as tags for player ${playerId.substring(0, 8)}...`);
-        console.log(`[LA/START] Tag update result:`, JSON.stringify(tagResult, null, 2));
+        const contentType = tagResponse.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          try {
+            const tagResult = await tagResponse.json();
+            console.log(`[LA/START] ✅ Stored activity_id ${activityId.substring(0, 8)}... and push_token as tags for player ${playerId.substring(0, 8)}...`);
+            console.log(`[LA/START] Tag update result:`, JSON.stringify(tagResult, null, 2));
+          } catch (e) {
+            console.warn(`[LA/START] ⚠️ Tag update succeeded but response was not valid JSON: ${e}`);
+          }
+        } else {
+          console.warn(`[LA/START] ⚠️ Tag update returned non-JSON response (content-type: ${contentType})`);
+        }
       }
     } catch (tagError) {
       console.error('[LA/START] ❌ Error setting activity_id tag:', tagError);
       console.error('[LA/START] Error details:', tagError instanceof Error ? tagError.message : String(tagError));
-      // Continue - Live Activity registration succeeded
+      // Continue - Live Activity registration succeeded, session store already has the data
     }
 
     console.log(`[LA/START] ✅ Successfully completed - returning 200 OK`);
