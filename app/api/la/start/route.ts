@@ -63,6 +63,8 @@ export async function POST(request: NextRequest) {
           push_token: laPushToken,
           event: 'update',  // Use 'update' since activity is created locally first (event: 'start' is for push-to-start only)
           name: 'petl-la-update',
+          // Include player_id for targeting (even if player lookup fails, OneSignal might use it for routing)
+          include_player_ids: playerId ? [playerId] : [],
           // Event updates (dynamic data)
           event_updates: {
             soc: contentState.soc,
