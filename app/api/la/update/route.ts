@@ -76,6 +76,8 @@ export async function POST(request: Request) {
         try {
           console.log(`[Update:${requestId}] 🔍 Activity not in store - retrieving pushToken from OneSignal player ${playerId.substring(0, 8)}...`);
           const playerUrl = `https://api.onesignal.com/apps/${process.env.ONESIGNAL_APP_ID}/players/${playerId}`;
+          console.log(`[Update:${requestId}] OneSignal Player API URL: ${playerUrl}`);
+          
           const playerResponse = await fetch(playerUrl, {
             method: 'GET',
             headers: {
@@ -85,23 +87,34 @@ export async function POST(request: Request) {
 
           if (playerResponse.ok) {
             const playerData = await playerResponse.json();
+            console.log(`[Update:${requestId}] Player API response - tags: ${JSON.stringify(playerData.tags || {})}`);
             const pushToken = playerData.tags?.['la_push_token'] as string | undefined;
             
             if (pushToken) {
               // Found pushToken - create session store entry
               storeActivity(incoming.activityId, playerId, pushToken, state);
-              console.log(`[Update:${requestId}] ✅ Retrieved pushToken from OneSignal and created session store entry`);
+              console.log(`[Update:${requestId}] ✅ Retrieved pushToken from OneSignal and created session store entry for cron job`);
             } else {
-              console.log(`[Update:${requestId}] ⚠️ Player found but no la_push_token tag - activity not stored for cron`);
+              console.log(`[Update:${requestId}] ⚠️ Player found but no 'la_push_token' tag. Activity was likely started before START endpoint was fixed. To enable cron updates, end and restart the Live Activity.`);
             }
           } else {
-            console.log(`[Update:${requestId}] ⚠️ Could not retrieve player from OneSignal (status: ${playerResponse.status}) - activity not stored for cron`);
+            const errorText = await playerResponse.text().catch(() => '');
+            console.log(`[Update:${requestId}] ⚠️ OneSignal Player API returned ${playerResponse.status}: ${errorText}`);
+            if (playerResponse.status === 404) {
+              console.log(`[Update:${requestId}] 💡 Player ID ${playerId.substring(0, 8)}... not found in OneSignal. This activity may have been started before START endpoint was properly configured. Manual updates will work, but cron job cannot update this activity.`);
+            } else {
+              console.log(`[Update:${requestId}] ⚠️ Could not retrieve player from OneSignal (status: ${playerResponse.status}) - activity not stored for cron`);
+            }
           }
         } catch (error) {
           console.log(`[Update:${requestId}] ⚠️ Error retrieving pushToken from OneSignal: ${error} - activity not stored for cron`);
         }
       } else {
-        console.log(`[Update:${requestId}] ⚠️ Activity ${incoming.activityId.substring(0, 8)}... not in session store and no playerId provided - state not updated for cron. This should have been created by START endpoint.`);
+        if (!playerId) {
+          console.log(`[Update:${requestId}] ⚠️ Activity ${incoming.activityId.substring(0, 8)}... not in session store and no playerId provided in meta. This should have been created by START endpoint. Manual updates work, but cron job cannot update this activity.`);
+        } else {
+          console.log(`[Update:${requestId}] ⚠️ Missing OneSignal credentials - cannot retrieve pushToken from player tags`);
+        }
       }
     }
   }
