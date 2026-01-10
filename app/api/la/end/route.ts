@@ -2,6 +2,7 @@
 // Receives Live Activity end request from iOS app and forwards to OneSignal
 
 import { NextRequest, NextResponse } from 'next/server';
+import { removeActivity } from '@/lib/session-store';
 
 export async function POST(request: NextRequest) {
   // Security: Verify request has valid secret
@@ -68,6 +69,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Remove activity from session store
+    removeActivity(activityId);
+
     // Remove activity_id tag from player (if we have playerId in meta)
     const playerId = meta?.playerId;
     if (playerId) {
@@ -81,6 +85,7 @@ export async function POST(request: NextRequest) {
               'Authorization': `Key ${ONESIGNAL_REST_API_KEY}`
             },
             body: JSON.stringify({
+              app_id: ONESIGNAL_APP_ID,  // OneSignal requires app_id in body
               tags: {
                 la_activity_id: '',  // Empty string removes the tag
                 la_push_token: '',   // Remove push token too

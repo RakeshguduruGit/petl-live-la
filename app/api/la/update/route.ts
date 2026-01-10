@@ -1,5 +1,5 @@
-import { callOneSignal, methodGuard } from '../../../../lib/onesignal';
-import { storeActivityState } from '../../../../lib/session-store';
+import { callOneSignal, methodGuard } from '@/lib/onesignal';
+import { storeActivityState, updateActivityState, getActivity } from '@/lib/session-store';
 import { randomUUID } from 'crypto';
 
 /**
@@ -61,13 +61,16 @@ export async function POST(request: Request) {
   const result = await callOneSignal('update', payload);
   const status = result.status ?? (result.ok ? 200 : 500);
   
-  // Store activity state for cron-based direct updates
+  // Update activity state in session store for cron-based direct updates
   if (result.ok) {
-    const playerId = incoming.meta?.playerId;
-    if (playerId) {
-      storeActivityState(incoming.activityId, playerId, state);
+    // Try to update existing activity state
+    const updated = updateActivityState(incoming.activityId, state);
+    if (!updated) {
+      // If activity doesn't exist in store, we need playerId and pushToken to create it
+      // For now, just log - it should have been created by START endpoint
+      console.log(`[Update:${requestId}] ⚠️ Activity ${incoming.activityId.substring(0, 8)}... not in session store - state not updated for cron`);
     } else {
-      console.log(`[Update:${requestId}] ⚠️ No playerId - state not stored for cron updates`);
+      console.log(`[Update:${requestId}] ✅ Updated session store with latest state`);
     }
   }
   

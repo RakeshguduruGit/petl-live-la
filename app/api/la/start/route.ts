@@ -2,6 +2,7 @@
 // Receives Live Activity start request from iOS app and forwards to OneSignal
 
 import { NextRequest, NextResponse } from 'next/server';
+import { storeActivity } from '@/lib/session-store';
 
 export async function POST(request: NextRequest) {
   const timestamp = new Date().toISOString();
@@ -88,7 +89,20 @@ export async function POST(request: NextRequest) {
     console.log(`[LA/START] ✅ OneSignal API success - activity registered`);
     console.log(`[LA/START] OneSignal response:`, JSON.stringify(result, null, 2));
 
-    // Store activity_id as a data tag on the player for cron job lookup
+    // Store activity in session store for cron job to process
+    storeActivity(
+      activityId,
+      playerId,
+      laPushToken,
+      {
+        soc: contentState.soc,
+        watts: contentState.watts,
+        timeToFullMinutes: contentState.timeToFullMinutes,
+        isCharging: contentState.isCharging
+      }
+    );
+
+    // Also store activity_id as a data tag on the player for OneSignal queries (optional)
     // This allows the cron job to find which devices have active Live Activities
     try {
       const tagUrl = `https://api.onesignal.com/apps/${ONESIGNAL_APP_ID}/players/${playerId}`;

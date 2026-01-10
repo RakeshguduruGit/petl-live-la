@@ -8,6 +8,7 @@
 export interface ActivitySession {
   activityId: string;
   playerId: string;
+  pushToken: string;  // CRITICAL: Required for OneSignal Live Activity updates
   state: {
     soc: number;
     watts: number;
@@ -21,28 +22,69 @@ export interface ActivitySession {
 const sessions = new Map<string, ActivitySession>();
 
 /**
- * Store or update activity state
+ * Store activity with pushToken (called from START endpoint)
+ */
+export function storeActivity(
+  activityId: string,
+  playerId: string,
+  pushToken: string,
+  state: ActivitySession['state']
+): void {
+  sessions.set(activityId, {
+    activityId,
+    playerId,
+    pushToken,
+    state,
+    lastUpdated: Date.now()
+  });
+  console.log(`[SessionStore] Stored activity ${activityId.substring(0, 8)}... for player ${playerId.substring(0, 8)}... pushToken: ${pushToken.substring(0, 8)}...`);
+}
+
+/**
+ * Store or update activity state (called from UPDATE endpoint)
  */
 export function storeActivityState(
   activityId: string,
   playerId: string,
   state: ActivitySession['state']
 ): void {
-  sessions.set(activityId, {
-    activityId,
-    playerId,
-    state,
-    lastUpdated: Date.now()
-  });
-  console.log(`[SessionStore] Stored state for activityId=${activityId.substring(0, 8)}... soc=${state.soc}%`);
+  const existing = sessions.get(activityId);
+  if (existing) {
+    // Update existing activity state
+    existing.state = state;
+    existing.lastUpdated = Date.now();
+    console.log(`[SessionStore] Updated state for activityId=${activityId.substring(0, 8)}... soc=${state.soc}%`);
+  } else {
+    // Can't create without pushToken - should have been created by START
+    console.warn(`[SessionStore] Activity ${activityId.substring(0, 8)}... not found - cannot store state without pushToken. It should have been created by START endpoint.`);
+  }
 }
 
 /**
- * Get activity state by activityId
+ * Update activity state (alternative to storeActivityState)
  */
-export function getActivityState(activityId: string): ActivitySession | null {
+export function updateActivityState(
+  activityId: string,
+  state: ActivitySession['state']
+): boolean {
+  const existing = sessions.get(activityId);
+  if (existing) {
+    existing.state = state;
+    existing.lastUpdated = Date.now();
+    console.log(`[SessionStore] Updated state for activityId=${activityId.substring(0, 8)}... soc=${state.soc}%`);
+    return true;
+  }
+  console.warn(`[SessionStore] Activity ${activityId.substring(0, 8)}... not found for update`);
+  return false;
+}
+
+/**
+ * Get activity by activityId
+ */
+export function getActivity(activityId: string): ActivitySession | null {
   return sessions.get(activityId) || null;
 }
+
 
 /**
  * Remove activity from store (when ended)
@@ -56,14 +98,14 @@ export function removeActivity(activityId: string): void {
 
 /**
  * Get all active activities (not stale)
- * Activities are considered stale if not updated in the last 10 minutes
+ * Activities are considered stale if not updated in the last 15 minutes
  */
-export function getAllActiveActivities(staleThresholdMs: number = 10 * 60 * 1000): ActivitySession[] {
+export function getAllActiveActivities(staleThresholdMs: number = 15 * 60 * 1000): ActivitySession[] {
   const now = Date.now();
   const active = Array.from(sessions.values()).filter(
     session => (now - session.lastUpdated) < staleThresholdMs
   );
-  console.log(`[SessionStore] Found ${active.length} active activities (total: ${sessions.size})`);
+  console.log(`[SessionStore] Found ${active.length} active activities (total: ${sessions.size} stored)`);
   return active;
 }
 
