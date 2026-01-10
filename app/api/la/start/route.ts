@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           push_token: laPushToken,
-          event: 'start',  // ✅ Use 'start' for initial Live Activity registration with OneSignal
+          event: 'update',  // Use 'update' since activity is created locally first (not push-to-start)
           name: 'petl-la-update',
           event_updates: {
             soc: contentState.soc,
