@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           push_token: laPushToken,
+          event: 'update',  // ✅ Required by OneSignal - even for initial notification after local activity creation
           name: 'petl-la-update',
           event_updates: {
             soc: contentState.soc,
