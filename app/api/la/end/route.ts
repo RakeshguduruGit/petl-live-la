@@ -97,15 +97,47 @@ export async function POST(request: NextRequest) {
         );
 
         if (!tagResponse.ok) {
-          const tagError = await tagResponse.json();
-          console.error('[LA/END] Failed to remove activity_id tag:', tagError);
-          // Don't fail the request if tag removal fails
+          // Check content type before trying to parse as JSON
+          const contentType = tagResponse.headers.get('content-type') || '';
+          
+          if (contentType.includes('application/json')) {
+            // JSON error response
+            try {
+              const tagError = await tagResponse.json();
+              console.error('[LA/END] Failed to remove activity_id tag:', JSON.stringify(tagError, null, 2));
+            } catch (e) {
+              const text = await tagResponse.text().catch(() => '');
+              console.error(`[LA/END] Failed to remove tags - JSON parse error: ${e}`);
+              console.error(`[LA/END] Response preview: ${text.substring(0, 200)}...`);
+            }
+          } else {
+            // Response is HTML or other non-JSON format (likely 404 page)
+            if (tagResponse.status === 404) {
+              console.warn(`[LA/END] ⚠️ Player ${playerId.substring(0, 8)}... not found in OneSignal (404). Tags cannot be removed because player doesn't exist. This is expected and non-critical.`);
+            } else {
+              const text = await tagResponse.text().catch(() => '');
+              console.warn(`[LA/END] ⚠️ Failed to remove tags - OneSignal returned HTML/error page (status: ${tagResponse.status})`);
+              console.warn(`[LA/END] Response preview: ${text.substring(0, 200)}...`);
+            }
+          }
+          // Don't fail the request if tag removal fails - Live Activity end succeeded
         } else {
-          console.log(`[LA/END] Removed activity_id tag for player ${playerId}`);
+          const contentType = tagResponse.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            try {
+              const tagResult = await tagResponse.json();
+              console.log(`[LA/END] ✅ Removed activity_id tag for player ${playerId.substring(0, 8)}...`);
+            } catch (e) {
+              console.warn(`[LA/END] ⚠️ Tag removal succeeded but response was not valid JSON: ${e}`);
+            }
+          } else {
+            console.warn(`[LA/END] ⚠️ Tag removal returned non-JSON response (content-type: ${contentType})`);
+          }
         }
       } catch (tagError) {
-        console.error('[LA/END] Error removing activity_id tag:', tagError);
-        // Continue - Live Activity end succeeded
+        console.error('[LA/END] ❌ Error removing activity_id tag:', tagError);
+        console.error('[LA/END] Error details:', tagError instanceof Error ? tagError.message : String(tagError));
+        // Continue - Live Activity end succeeded, session store already cleaned up
       }
     }
 
