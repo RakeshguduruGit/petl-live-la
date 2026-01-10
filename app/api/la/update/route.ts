@@ -1,5 +1,5 @@
 import { callOneSignal, methodGuard } from '@/lib/onesignal';
-import { storeActivityState, updateActivityState, getActivity } from '@/lib/session-store';
+import { storeActivity, updateActivityState, getActivity } from '@/lib/session-store';
 import { randomUUID } from 'crypto';
 
 /**
@@ -64,13 +64,45 @@ export async function POST(request: Request) {
   // Update activity state in session store for cron-based direct updates
   if (result.ok) {
     // Try to update existing activity state
-    const updated = updateActivityState(incoming.activityId, state);
-    if (!updated) {
-      // If activity doesn't exist in store, we need playerId and pushToken to create it
-      // For now, just log - it should have been created by START endpoint
-      console.log(`[Update:${requestId}] ⚠️ Activity ${incoming.activityId.substring(0, 8)}... not in session store - state not updated for cron`);
-    } else {
+    const existing = getActivity(incoming.activityId);
+    if (existing) {
+      // Activity exists - just update the state
+      updateActivityState(incoming.activityId, state);
       console.log(`[Update:${requestId}] ✅ Updated session store with latest state`);
+    } else {
+      // Activity doesn't exist in store - try to retrieve pushToken from OneSignal player tags
+      const playerId = incoming.meta?.playerId;
+      if (playerId && process.env.ONESIGNAL_APP_ID && process.env.ONESIGNAL_REST_API_KEY) {
+        try {
+          console.log(`[Update:${requestId}] 🔍 Activity not in store - retrieving pushToken from OneSignal player ${playerId.substring(0, 8)}...`);
+          const playerUrl = `https://api.onesignal.com/apps/${process.env.ONESIGNAL_APP_ID}/players/${playerId}`;
+          const playerResponse = await fetch(playerUrl, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Key ${process.env.ONESIGNAL_REST_API_KEY}`
+            }
+          });
+
+          if (playerResponse.ok) {
+            const playerData = await playerResponse.json();
+            const pushToken = playerData.tags?.['la_push_token'] as string | undefined;
+            
+            if (pushToken) {
+              // Found pushToken - create session store entry
+              storeActivity(incoming.activityId, playerId, pushToken, state);
+              console.log(`[Update:${requestId}] ✅ Retrieved pushToken from OneSignal and created session store entry`);
+            } else {
+              console.log(`[Update:${requestId}] ⚠️ Player found but no la_push_token tag - activity not stored for cron`);
+            }
+          } else {
+            console.log(`[Update:${requestId}] ⚠️ Could not retrieve player from OneSignal (status: ${playerResponse.status}) - activity not stored for cron`);
+          }
+        } catch (error) {
+          console.log(`[Update:${requestId}] ⚠️ Error retrieving pushToken from OneSignal: ${error} - activity not stored for cron`);
+        }
+      } else {
+        console.log(`[Update:${requestId}] ⚠️ Activity ${incoming.activityId.substring(0, 8)}... not in session store and no playerId provided - state not updated for cron. This should have been created by START endpoint.`);
+      }
     }
   }
   
