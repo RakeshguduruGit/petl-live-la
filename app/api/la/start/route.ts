@@ -61,17 +61,8 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           push_token: laPushToken,
-          event: 'start',  // Use 'start' to register activity with OneSignal (required for routing updates)
+          event: 'update',  // Use 'update' since activity is created locally first (event: 'start' is for push-to-start only)
           name: 'petl-la-update',
-          // Required fields for 'start' event
-          contents: { en: 'Charging in progress' },  // Required: message content
-          headings: { en: 'PETL' },  // Required: message heading
-          // Activity type - use name as activity_type
-          live_activity_activity_type: 'petl-la-update',
-          // Event attributes (static data)
-          live_activity_ios_event_attributes: {
-            activityType: 'petl-la-update'
-          },
           // Event updates (dynamic data)
           event_updates: {
             soc: contentState.soc,
