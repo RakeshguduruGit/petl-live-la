@@ -80,11 +80,36 @@ export async function POST(request: Request) {
   // Get playerId from session store or request meta
   const playerId = existingActivity?.playerId || incoming.meta?.playerId;
   
+  // Check if player exists in OneSignal before including include_player_ids
+  // For Live Activities, push_token is sufficient - include_player_ids is optional
+  let playerExists = false;
+  if (playerId && process.env.ONESIGNAL_APP_ID && process.env.ONESIGNAL_REST_API_KEY) {
+    try {
+      const playerCheckUrl = `https://api.onesignal.com/apps/${process.env.ONESIGNAL_APP_ID}/players/${playerId}`;
+      const playerCheckResponse = await fetch(playerCheckUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Key ${process.env.ONESIGNAL_REST_API_KEY}`
+        }
+      });
+      playerExists = playerCheckResponse.ok;
+      if (playerExists) {
+        console.log(`[Update:${requestId}] ✅ Player ${playerId.substring(0, 8)}... exists - will include in targeting`);
+      } else {
+        console.log(`[Update:${requestId}] ⚠️ Player ${playerId.substring(0, 8)}... not found (${playerCheckResponse.status}) - will use push_token only`);
+      }
+    } catch (checkError) {
+      console.warn(`[Update:${requestId}] ⚠️ Could not verify player existence: ${checkError} - will use push_token only`);
+      playerExists = false;
+    }
+  }
+  
   const payload = {
     activityId: incoming.activityId,
     state: state,
     pushToken: pushToken || undefined,  // Include push_token if available
-    playerId: playerId || undefined,    // Include playerId for targeting
+    playerId: playerId || undefined,    // Include playerId for targeting (only if exists)
+    includePlayerIds: playerExists,     // Flag to include include_player_ids only if player exists
   };
 
   const result = await callOneSignal('update', payload);

@@ -56,10 +56,14 @@ export async function callOneSignal(
       console.log(`[OneSignal ${routeName}] ⚠️ WARNING: No push_token in payload - OneSignal will return "No Recipients"`);
     }
     
-    // Include player_id if provided - may help OneSignal with routing
-    if (body.playerId && Array.isArray(body.playerId) ? body.playerId.length > 0 : body.playerId) {
+    // Only include player_id if explicitly enabled (player existence verified by caller)
+    // For Live Activities, push_token is sufficient - include_player_ids is optional
+    // Including a non-existent player can cause "No Recipients" even with valid push_token
+    if (body.includePlayerIds === true && body.playerId && Array.isArray(body.playerId) ? body.playerId.length > 0 : body.playerId) {
       payload.include_player_ids = Array.isArray(body.playerId) ? body.playerId : [body.playerId];
-      console.log(`[OneSignal ${routeName}] ✅ Including include_player_ids for targeting`);
+      console.log(`[OneSignal ${routeName}] ✅ Including include_player_ids for targeting (player verified to exist)`);
+    } else if (body.playerId) {
+      console.log(`[OneSignal ${routeName}] ℹ️ Player ID provided but includePlayerIds=false - using push_token only`);
     }
   } else {
     // End Live Activity

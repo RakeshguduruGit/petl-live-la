@@ -52,7 +52,32 @@ export async function POST(request: NextRequest) {
     // Format matches iOS app's OneSignalClient.swift implementation
     console.log(`[LA/START] 📤 Forwarding to OneSignal for activity ${activityId.substring(0, 8)}...`);
     
-    // Build payload - include targeting if possible
+    // Check if player exists in OneSignal before including include_player_ids
+    // For Live Activities, push_token is sufficient - include_player_ids is optional
+    // Including a non-existent player can cause "No Recipients" even with valid push_token
+    let playerExists = false;
+    if (playerId) {
+      try {
+        const playerCheckUrl = `https://api.onesignal.com/apps/${ONESIGNAL_APP_ID}/players/${playerId}`;
+        const playerCheckResponse = await fetch(playerCheckUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Key ${ONESIGNAL_REST_API_KEY}`
+          }
+        });
+        playerExists = playerCheckResponse.ok;
+        if (playerExists) {
+          console.log(`[LA/START] ✅ Player ${playerId.substring(0, 8)}... exists in OneSignal - will include in targeting`);
+        } else {
+          console.log(`[LA/START] ⚠️ Player ${playerId.substring(0, 8)}... not found (${playerCheckResponse.status}) - will use push_token only`);
+        }
+      } catch (checkError) {
+        console.warn(`[LA/START] ⚠️ Could not verify player existence: ${checkError} - will use push_token only`);
+        playerExists = false;
+      }
+    }
+    
+    // Build payload - push_token is required and sufficient for Live Activities
     const payload: any = {
       push_token: laPushToken,
       event: 'update',  // Use 'update' since activity is created locally first (event: 'start' is for push-to-start only)
@@ -67,12 +92,13 @@ export async function POST(request: NextRequest) {
       priority: 5
     };
     
-    // Include player_id for targeting if available (don't include empty array)
-    if (playerId) {
+    // Only include player_id for targeting if player exists in OneSignal
+    // push_token is sufficient for delivery - include_player_ids is optional
+    if (playerId && playerExists) {
       payload.include_player_ids = [playerId];
-      console.log(`[LA/START] Including include_player_ids: [${playerId.substring(0, 8)}...]`);
+      console.log(`[LA/START] ✅ Including include_player_ids: [${playerId.substring(0, 8)}...] (player verified to exist)`);
     } else {
-      console.log(`[LA/START] ⚠️ No playerId available - relying solely on push_token for targeting`);
+      console.log(`[LA/START] ℹ️ Using push_token only for targeting (playerId: ${playerId ? playerId.substring(0, 8) + '... (not found)' : 'not provided'})`);
     }
     
     console.log(`[LA/START] Payload keys: ${Object.keys(payload).join(', ')}`);
