@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           event: 'end',
+          name: 'petl-la-end',  // ✅ Required by OneSignal
           // OneSignal requires event_updates even for end; send a minimal valid ContentState
           event_updates: {
             soc: 0,
