@@ -79,8 +79,6 @@ export async function POST(request: NextRequest) {
             timeToFullMinutes: contentState.timeToFullMinutes,
             isCharging: contentState.isCharging
           },
-          // Targeting - use push_token for direct targeting
-          include_player_ids: [],  // Empty - using push_token instead
           priority: 5
         })
       }
