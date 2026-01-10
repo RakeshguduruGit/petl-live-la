@@ -1,122 +1,120 @@
-import { callOneSignal, methodGuard } from '../../../../lib/onesignal';
-import { removeActivity } from '../../../../lib/session-store';
-import { randomUUID } from 'crypto';
+// Next.js App Router API Route: End Live Activity
+// Receives Live Activity end request from iOS app and forwards to OneSignal
 
-/**
- * POST /api/la/end
- * 
- * Ends an existing Live Activity.
- * The Live Activity must already be started on the iOS device.
- * 
- * Flow:
- * 1. iOS app has already started Live Activity via Activity.request()
- * 2. Server sends end event to OneSignal
- * 3. OneSignal terminates the Live Activity
- * 4. Session is removed from store (stops background silent pushes)
- * 
- * Security: Validates X-PETL-Secret header against PETL_SERVER_SECRET env var
- * 
- * Payload:
- * - activityId: string (required)
- * - immediate: boolean (optional, default true) - if true, ends immediately; if false, uses dismissalDate
- * - dismissalDate: number (optional) - Unix timestamp for scheduled dismissal
- */
-export async function POST(request: Request) {
-  const requestId = randomUUID();
-  const incoming = await request.json().catch(() => ({}));
-  
-  // Validate X-PETL-Secret header
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(request: NextRequest) {
+  // Security: Verify request has valid secret
   const secret = request.headers.get('x-petl-secret');
   const expectedSecret = process.env.PETL_SERVER_SECRET;
-  
-  if (expectedSecret && secret !== expectedSecret) {
-    console.log(`[End:${requestId}] Unauthorized`);
-    return Response.json({
-      ok: false,
-      error: 'Unauthorized'
-    }, { status: 401 });
+
+  if (!expectedSecret || secret !== expectedSecret) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  
-  // Validate required fields
-  if (!incoming.activityId) {
-    console.log(`[End:${requestId}] Missing activityId`);
-    return Response.json({
-      ok: false,
-      status: 400,
-      error: 'Missing required field: activityId',
-      details: null
-    }, { status: 400 });
-  }
-  
-  const immediate = incoming.immediate !== false; // Default to true
-  console.log(`[End:${requestId}] activityId=${incoming.activityId} immediate=${immediate}`);
-  
-  // Get playerId from request metadata for tag removal
-  const playerId = incoming.meta?.playerId;
-  
-  // 🔥 SERVER-SIDE TAG REMOVAL: Remove "charging" tag using OneSignal REST API
-  if (playerId) {
-    const appId = process.env.ONESIGNAL_APP_ID?.trim();
-    const restKey = process.env.ONESIGNAL_REST_API_KEY?.trim();
+
+  try {
+    const body = await request.json();
+    const { activityId, immediate, meta } = body;
+
+    if (!activityId) {
+      return NextResponse.json({ error: 'Missing activityId' }, { status: 400 });
+    }
+
+    // Get OneSignal credentials from environment
+    const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
+    const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
+
+    if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
+      console.error('[LA/END] Missing OneSignal credentials');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+
+    // Forward to OneSignal Live Activity API to end
+    // Format matches iOS app's OneSignalClient.swift implementation
+    const dismissalDate = immediate 
+      ? Math.floor(Date.now() / 1000) - 5  // Force immediate dismissal
+      : Math.floor(Date.now() / 1000);     // Normal dismissal
     
-    if (appId && restKey) {
-      try {
-        const tagResponse = await fetch(`https://api.onesignal.com/players/${playerId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Key ${restKey}`,
+    const response = await fetch(
+      `https://api.onesignal.com/apps/${ONESIGNAL_APP_ID}/live_activities/${activityId}/notifications`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Key ${ONESIGNAL_REST_API_KEY}`
+        },
+        body: JSON.stringify({
+          event: 'end',
+          // OneSignal requires event_updates even for end; send a minimal valid ContentState
+          event_updates: {
+            soc: 0,
+            watts: 0.0,
+            timeToFullMinutes: 2,
+            isCharging: false
           },
-          body: JSON.stringify({
-            app_id: appId,
-            tags: { charging: '' }  // Empty string removes the tag
-          }),
-        });
-        
-        if (tagResponse.ok) {
-          console.log(`[End:${requestId}] ✅ Server-side tag REMOVED: charging (player ${playerId.substring(0, 8)}...)`);
+          // Force immediate dismissal by setting a recent past timestamp
+          dismissal_date: dismissalDate
+        })
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error('[LA/END] OneSignal API error:', result);
+      return NextResponse.json(
+        { error: 'OneSignal API error', details: result },
+        { status: response.status }
+      );
+    }
+
+    // Remove activity_id tag from player (if we have playerId in meta)
+    const playerId = meta?.playerId;
+    if (playerId) {
+      try {
+        const tagResponse = await fetch(
+          `https://api.onesignal.com/apps/${ONESIGNAL_APP_ID}/players/${playerId}`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Key ${ONESIGNAL_REST_API_KEY}`
+            },
+            body: JSON.stringify({
+              tags: {
+                la_activity_id: '',  // Empty string removes the tag
+                la_push_token: '',   // Remove push token too
+                charging: 'false'    // Remove charging tag
+              }
+            })
+          }
+        );
+
+        if (!tagResponse.ok) {
+          const tagError = await tagResponse.json();
+          console.error('[LA/END] Failed to remove activity_id tag:', tagError);
+          // Don't fail the request if tag removal fails
         } else {
-          const tagError = await tagResponse.text();
-          console.error(`[End:${requestId}] ❌ Server-side tag removal failed (${tagResponse.status}): ${tagError}`);
+          console.log(`[LA/END] Removed activity_id tag for player ${playerId}`);
         }
-      } catch (tagErr: any) {
-        console.error(`[End:${requestId}] ❌ Server-side tag removal error: ${tagErr.message}`);
+      } catch (tagError) {
+        console.error('[LA/END] Error removing activity_id tag:', tagError);
+        // Continue - Live Activity end succeeded
       }
     }
-  } else {
-    console.log(`[End:${requestId}] ⚠️ No playerId available - cannot remove OneSignal tag`);
-  }
-  
-  // Prepare payload for OneSignal Live Activity end
-  const payload: any = {
-    activityId: incoming.activityId,
-  };
-  
-  // Add dismissalDate if provided and not immediate
-  if (!immediate && incoming.dismissalDate) {
-    payload.dismissalDate = incoming.dismissalDate;
-  } else if (immediate) {
-    // For immediate dismissal, set to past timestamp
-    payload.dismissalDate = Math.floor(Date.now() / 1000) - 10;
-  }
 
-  const result = await callOneSignal('end', payload);
-  const status = result.status ?? (result.ok ? 200 : 500);
-  
-  // Remove activity from store (stops cron-based updates)
-  if (result.ok) {
-    removeActivity(incoming.activityId);
+    return NextResponse.json({
+      success: true,
+      activityId,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('[LA/END] Error:', error);
+    return NextResponse.json(
+      { error: 'Failed to end Live Activity', message: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
   }
-  
-  console.log(`[End:${requestId}] result=${result.ok ? 'ok' : 'error'}`);
-  
-  return Response.json(result, { status });
 }
 
-export async function GET() {
-  // Method not allowed
-  return new Response(JSON.stringify({ ok: false, error: 'METHOD_NOT_ALLOWED' }), {
-    status: 405,
-    headers: { 'Allow': 'POST', 'Content-Type': 'application/json' },
-  });
-}
