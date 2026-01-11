@@ -223,8 +223,7 @@ export async function GET(request: NextRequest) {
             app_id: ONESIGNAL_APP_ID.trim(),  // Ensure no whitespace
             include_player_ids: playerIds,
             content_available: true,
-            apns_push_type_override: 'background',
-            ios_interruption_level: 'passive',
+            // No title/body = silent notification (OneSignal automatically sets APNs push type to background)
             data: {
               type: 'cron-update-log',
               timestamp: new Date().toISOString(),
