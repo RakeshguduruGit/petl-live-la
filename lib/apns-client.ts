@@ -126,6 +126,20 @@ class APNsClient {
       console.error('[APNs] ❌ Private key missing PEM headers');
       throw new Error('Private key must be in PEM format with BEGIN PRIVATE KEY/END PRIVATE KEY headers');
     }
+    
+    // Fix missing newlines after BEGIN/END lines (common when pasted into Vercel)
+    // PEM format requires newlines after BEGIN and before END
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----\n')) {
+      privateKey = privateKey.replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n');
+    }
+    if (!privateKey.includes('\n-----END PRIVATE KEY-----')) {
+      privateKey = privateKey.replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
+    }
+    
+    // Ensure key ends with newline (required by OpenSSL)
+    if (!privateKey.endsWith('\n')) {
+      privateKey += '\n';
+    }
 
     try {
       // For ES256 (ECDSA with SHA-256), we need to use crypto.sign() directly
