@@ -106,7 +106,7 @@ class APNsClient {
 
     // Sign with private key using ES256 (ECDSA P-256 with SHA-256)
     // The key should be in PEM format (either from .p8 file or environment variable)
-    let privateKey = this.config.key;
+    let privateKey = this.config.key.trim();
     
     // Handle base64-encoded keys
     if (!privateKey.includes('-----BEGIN')) {
@@ -118,21 +118,33 @@ class APNsClient {
       }
     }
     
-    // Ensure proper line breaks
+    // Ensure proper line breaks (handle both \n and \\n)
     privateKey = privateKey.replace(/\\n/g, '\n');
     
-    // If it doesn't have PEM headers, add them (assuming it's a raw key)
-    if (!privateKey.includes('-----BEGIN')) {
-      // This is a raw key - we need to wrap it in PEM format
-      // Note: .p8 files from Apple are already in PEM format
-      console.warn('[APNs] Key format may be incorrect - should be PEM format');
+    // Verify PEM format
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      console.error('[APNs] ❌ Private key missing PEM headers');
+      throw new Error('Private key must be in PEM format with BEGIN PRIVATE KEY/END PRIVATE KEY headers');
     }
 
     try {
-      const sign = crypto.createSign('SHA256');
-      sign.update(signatureInput);
-      sign.end();
-      const signature = sign.sign(privateKey, 'base64url');
+      // For ES256 (ECDSA with SHA-256), we need to use crypto.sign() directly
+      // Create a private key object from the PEM string
+      const keyObject = crypto.createPrivateKey(privateKey);
+      
+      // Verify the key type (should be 'ec' for ECDSA)
+      if (keyObject.asymmetricKeyType !== 'ec') {
+        throw new Error(`Expected EC key for ES256, got ${keyObject.asymmetricKeyType}`);
+      }
+      
+      // Sign using crypto.sign() with 'ecdsaWithSHA256' algorithm
+      const signatureBuffer = crypto.sign('ecdsaWithSHA256', Buffer.from(signatureInput), keyObject);
+      
+      // Convert to base64url (URL-safe base64: replace + with -, / with _, remove padding)
+      const signature = signatureBuffer.toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
 
       const jwt = `${headerB64}.${payloadB64}.${signature}`;
       
@@ -143,6 +155,7 @@ class APNsClient {
       return jwt;
     } catch (error) {
       console.error('[APNs] ❌ Error signing JWT:', error);
+      console.error('[APNs] Key preview (first 100 chars):', privateKey.substring(0, 100).replace(/\n/g, '\\n'));
       throw new Error(`Failed to sign JWT: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
