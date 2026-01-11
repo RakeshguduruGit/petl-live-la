@@ -4,10 +4,15 @@
  * Stores activity state so cron job can send direct Live Activity updates
  * without needing to wake the app via silent push.
  * 
- * Uses Vercel KV (Redis) for persistence across serverless function invocations.
+ * Uses Upstash Redis (via Vercel Marketplace) for persistence across serverless function invocations.
  */
 
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
 
 export interface ActivitySession {
   activityId: string;
@@ -51,10 +56,10 @@ export async function storeActivity(
     };
     
     // Store the activity
-    await kv.set(getActivityKey(activityId), session);
+    await redis.set(getActivityKey(activityId), session);
     
     // Add to index set
-    await kv.sadd(KV_INDEX_KEY, activityId);
+    await redis.sadd(KV_INDEX_KEY, activityId);
     
     console.log(`[SessionStore] ✅ Stored activity ${activityId.substring(0, 8)}... for player ${playerId.substring(0, 8)}... pushToken: ${pushToken.substring(0, 8)}...`);
   } catch (error) {
@@ -72,12 +77,12 @@ export async function storeActivityState(
   state: ActivitySession['state']
 ): Promise<void> {
   try {
-    const existing = await kv.get<ActivitySession>(getActivityKey(activityId));
+    const existing = await redis.get<ActivitySession>(getActivityKey(activityId));
     if (existing) {
       // Update existing activity state
       existing.state = state;
       existing.lastUpdated = Date.now();
-      await kv.set(getActivityKey(activityId), existing);
+      await redis.set(getActivityKey(activityId), existing);
       console.log(`[SessionStore] ✅ Updated state for activityId=${activityId.substring(0, 8)}... soc=${state.soc}%`);
     } else {
       // Can't create without pushToken - should have been created by START
@@ -97,11 +102,11 @@ export async function updateActivityState(
   state: ActivitySession['state']
 ): Promise<boolean> {
   try {
-    const existing = await kv.get<ActivitySession>(getActivityKey(activityId));
+    const existing = await redis.get<ActivitySession>(getActivityKey(activityId));
     if (existing) {
       existing.state = state;
       existing.lastUpdated = Date.now();
-      await kv.set(getActivityKey(activityId), existing);
+      await redis.set(getActivityKey(activityId), existing);
       console.log(`[SessionStore] ✅ Updated state for activityId=${activityId.substring(0, 8)}... soc=${state.soc}%`);
       return true;
     }
@@ -118,7 +123,7 @@ export async function updateActivityState(
  */
 export async function getActivity(activityId: string): Promise<ActivitySession | null> {
   try {
-    const session = await kv.get<ActivitySession>(getActivityKey(activityId));
+    const session = await redis.get<ActivitySession>(getActivityKey(activityId));
     return session || null;
   } catch (error) {
     console.error(`[SessionStore] ❌ Failed to get activity ${activityId.substring(0, 8)}...:`, error);
@@ -131,8 +136,8 @@ export async function getActivity(activityId: string): Promise<ActivitySession |
  */
 export async function removeActivity(activityId: string): Promise<void> {
   try {
-    await kv.del(getActivityKey(activityId));
-    await kv.srem(KV_INDEX_KEY, activityId);
+    await redis.del(getActivityKey(activityId));
+    await redis.srem(KV_INDEX_KEY, activityId);
     console.log(`[SessionStore] ✅ Removed activityId=${activityId.substring(0, 8)}...`);
   } catch (error) {
     console.error(`[SessionStore] ❌ Failed to remove activity ${activityId.substring(0, 8)}...:`, error);
@@ -147,13 +152,13 @@ export async function removeActivity(activityId: string): Promise<void> {
 export async function getAllActiveActivities(staleThresholdMs: number = 15 * 60 * 1000): Promise<ActivitySession[]> {
   try {
     const now = Date.now();
-    const index = await kv.smembers<string[]>(KV_INDEX_KEY) || [];
+    const index = await redis.smembers<string[]>(KV_INDEX_KEY) || [];
     
     console.log(`[SessionStore] Found ${index.length} activities in index`);
     
     const active: ActivitySession[] = [];
     for (const activityId of index) {
-      const session = await kv.get<ActivitySession>(getActivityKey(activityId));
+      const session = await redis.get<ActivitySession>(getActivityKey(activityId));
       if (session && (now - session.lastUpdated) < staleThresholdMs) {
         active.push(session);
       } else if (session && (now - session.lastUpdated) >= staleThresholdMs) {
@@ -178,11 +183,11 @@ export async function getAllActiveActivities(staleThresholdMs: number = 15 * 60 
 export async function cleanupStaleActivities(staleThresholdMs: number = 10 * 60 * 1000): Promise<number> {
   try {
     const now = Date.now();
-    const index = await kv.smembers<string[]>(KV_INDEX_KEY) || [];
+    const index = await redis.smembers<string[]>(KV_INDEX_KEY) || [];
     let removed = 0;
     
     for (const activityId of index) {
-      const session = await kv.get<ActivitySession>(getActivityKey(activityId));
+      const session = await redis.get<ActivitySession>(getActivityKey(activityId));
       if (session && now - session.lastUpdated >= staleThresholdMs) {
         await removeActivity(activityId);
         removed++;
@@ -201,10 +206,10 @@ export async function cleanupStaleActivities(staleThresholdMs: number = 10 * 60 
  */
 export async function getStoreStats() {
   try {
-    const index = await kv.smembers<string[]>(KV_INDEX_KEY) || [];
+    const index = await redis.smembers<string[]>(KV_INDEX_KEY) || [];
     const activities = await Promise.all(
       index.map(async (activityId) => {
-        const session = await kv.get<ActivitySession>(getActivityKey(activityId));
+        const session = await redis.get<ActivitySession>(getActivityKey(activityId));
         if (!session) return null;
         return {
           activityId: session.activityId.substring(0, 8) + '...',
