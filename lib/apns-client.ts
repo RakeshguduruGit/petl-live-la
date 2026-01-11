@@ -224,7 +224,7 @@ class APNsClient {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${jwt}`,
-          'apns-topic': this.config.bundleId, // Topic is just the bundle ID for Live Activities
+          'apns-topic': `${this.config.bundleId}.pushnotification.liveactivity`, // Live Activities topic format
           'apns-push-type': 'liveactivity',
           'apns-priority': '10',
           'Content-Type': 'application/json'
