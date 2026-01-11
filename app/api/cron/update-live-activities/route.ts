@@ -220,7 +220,7 @@ export async function GET(request: NextRequest) {
           console.log(`[Cron] 📱 Sending silent push to wake iOS app for logging (${playerIds.length} players)`);
           
           const silentPushPayload = {
-            app_id: ONESIGNAL_APP_ID,
+            app_id: ONESIGNAL_APP_ID.trim(),  // Ensure no whitespace
             include_player_ids: playerIds,
             content_available: true,
             apns_push_type_override: 'background',
@@ -233,11 +233,13 @@ export async function GET(request: NextRequest) {
             }
           };
           
+          console.log(`[Cron] 📱 Silent push payload app_id: "${ONESIGNAL_APP_ID.trim()}" (length: ${ONESIGNAL_APP_ID.trim().length})`);
+          
           const pushResponse = await fetch('https://api.onesignal.com/notifications', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`
+              'Authorization': `Basic ${ONESIGNAL_REST_API_KEY.trim()}`  // Ensure no whitespace
             },
             body: JSON.stringify(silentPushPayload)
           });
