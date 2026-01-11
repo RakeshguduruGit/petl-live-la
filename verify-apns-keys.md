@@ -65,13 +65,13 @@ lnfPFcXd
 
 You can verify the .p8 file locally:
 ```bash
-# Check file exists
-ls -la /Users/rakeshg/Downloads/AuthKey_7SH93SA6Y7.p8
+# After downloading the key from Apple Developer Portal, check:
+ls -la ~/Downloads/AuthKey_G32XLR8935.p8
 
 # View file (first and last lines)
-head -1 /Users/rakeshg/Downloads/AuthKey_7SH93SA6Y7.p8
-tail -1 /Users/rakeshg/Downloads/AuthKey_7SH93SA6Y7.p8
+head -1 ~/Downloads/AuthKey_G32XLR8935.p8
+tail -1 ~/Downloads/AuthKey_G32XLR8935.p8
 
-# Count lines (should be 6)
-wc -l /Users/rakeshg/Downloads/AuthKey_7SH93SA6Y7.p8
+# Count lines (should be 6 or more)
+wc -l ~/Downloads/AuthKey_G32XLR8935.p8
 ```
