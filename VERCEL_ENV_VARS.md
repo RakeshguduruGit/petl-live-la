@@ -6,7 +6,7 @@ Add these environment variables to your Vercel project:
 
 ### 1. APNS_KEY_ID
 ```
-7SH93SA6Y7
+G32XLR8935
 ```
 
 ### 2. APNS_TEAM_ID
@@ -42,7 +42,7 @@ production
 2. Navigate to **Settings** → **Environment Variables**
 3. Add each variable:
    - **Key:** Enter the variable name (e.g., `APNS_KEY_ID`)
-   - **Value:** Enter the value (e.g., `7SH93SA6Y7`)
+   - **Value:** Enter the value (e.g., `G32XLR8935`)
    - **Environment:** Select "Production", "Preview", and "Development" (or just Production)
    - Click **Save**
 
@@ -58,7 +58,7 @@ production
 ## Verification:
 
 After redeploying, check Vercel logs for:
-- `[APNs] Configuration loaded - Key ID: 7SH93SA6..., Team ID: MFBFYXVN..., Environment: production`
+- `[APNs] Configuration loaded - Key ID: G32XLR89..., Team ID: MFBFYXVN..., Environment: production`
 - If you see: `[APNs] Missing APNs credentials - direct APNs updates disabled`, check that all variables are set correctly
 
 ## Testing:
