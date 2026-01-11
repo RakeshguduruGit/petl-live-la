@@ -302,54 +302,6 @@ class APNsClient {
         req.write(payloadString);
         req.end();
       });
-
-      if (response.ok) {
-        const apnsId = response.headers.get('apns-id') || 'unknown';
-        console.log(`[APNs] ✅ Live Activity update sent successfully - APNs ID: ${apnsId}`);
-        return {
-          success: true,
-          responseId: apnsId
-        };
-      } else {
-        const errorText = await response.text();
-        console.error(`[APNs] ❌ Failed to send Live Activity update - Status: ${response.status}`);
-        console.error(`[APNs] Error response: ${errorText}`);
-        
-        // Log response headers for debugging
-        const responseHeaders: Record<string, string> = {};
-        response.headers.forEach((value, key) => {
-          responseHeaders[key] = value;
-        });
-        console.error(`[APNs] Response headers:`, JSON.stringify(responseHeaders, null, 2));
-        
-        return {
-          success: false,
-          error: `APNs error: ${response.status} - ${errorText}`
-        };
-      }
-    } catch (error) {
-      console.error('[APNs] ❌ Exception sending Live Activity update:', error);
-      
-      // Log more details about the error
-      if (error && typeof error === 'object' && 'cause' in error) {
-        const cause = (error as any).cause;
-        console.error('[APNs] Error cause:', cause);
-        if (cause && typeof cause === 'object' && 'code' in cause) {
-          console.error('[APNs] Error code:', cause.code);
-        }
-      }
-      
-      // Check if this is an HTTP/2 protocol error
-      if (error instanceof TypeError && error.message.includes('fetch failed')) {
-        console.error('[APNs] 💡 This looks like an HTTP/2 protocol error. APNs requires HTTP/2, but Node.js fetch might not handle it correctly in serverless environments.');
-        console.error('[APNs] 💡 Consider using a library that explicitly supports HTTP/2 (e.g., node-fetch with HTTP/2 support, or apn library)');
-      }
-      
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
   }
 
   /**
