@@ -22,6 +22,7 @@
  */
 
 import crypto from 'crypto';
+import { SignJWT, importPKCS8 } from 'jose';
 
 interface APNsConfig {
   keyId: string;
@@ -42,6 +43,7 @@ class APNsClient {
   private config: APNsConfig | null = null;
   private jwtToken: string | null = null;
   private jwtTokenExpiry: number = 0;
+  private jwtTokenPromise: Promise<string> | null = null;
 
   constructor() {
     this.loadConfig();
@@ -77,7 +79,7 @@ class APNsClient {
    * 
    * Uses ES256 algorithm (ECDSA with SHA-256) for signing
    */
-  private generateJWT(): string {
+  private async generateJWT(): Promise<string> {
     if (!this.config) {
       throw new Error('APNs not configured');
     }
@@ -88,29 +90,17 @@ class APNsClient {
     if (this.jwtToken && now < this.jwtTokenExpiry - 300) {
       return this.jwtToken;
     }
+    
+    // If there's already a pending token generation, reuse it
+    if (this.jwtTokenPromise) {
+      return this.jwtTokenPromise;
+    }
 
-    const header = {
-      alg: 'ES256',
-      kid: this.config.keyId
-    };
-
-    const payload = {
-      iss: this.config.teamId,
-      iat: now
-    };
-
-    // Create JWT
-    const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url');
-    const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    const signatureInput = `${headerB64}.${payloadB64}`;
-
-    // Sign with private key using ES256 (ECDSA P-256 with SHA-256)
-    // The key should be in PEM format (either from .p8 file or environment variable)
+    // Prepare private key (PEM format)
     let privateKey = this.config.key.trim();
     
     // Handle base64-encoded keys
     if (!privateKey.includes('-----BEGIN')) {
-      // If it's base64 encoded, decode it first
       try {
         privateKey = Buffer.from(privateKey, 'base64').toString('utf-8');
       } catch {
@@ -128,7 +118,6 @@ class APNsClient {
     }
     
     // Fix missing newlines after BEGIN/END lines (common when pasted into Vercel)
-    // PEM format requires newlines after BEGIN and before END
     if (!privateKey.includes('-----BEGIN PRIVATE KEY-----\n')) {
       privateKey = privateKey.replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n');
     }
@@ -136,42 +125,44 @@ class APNsClient {
       privateKey = privateKey.replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
     }
     
-    // Ensure key ends with newline (required by OpenSSL)
+    // Ensure key ends with newline
     if (!privateKey.endsWith('\n')) {
       privateKey += '\n';
     }
 
-    try {
-      // For ES256 (ECDSA with SHA-256), we need to use crypto.sign() directly
-      // Create a private key object from the PEM string
-      const keyObject = crypto.createPrivateKey(privateKey);
-      
-      // Verify the key type (should be 'ec' for ECDSA)
-      if (keyObject.asymmetricKeyType !== 'ec') {
-        throw new Error(`Expected EC key for ES256, got ${keyObject.asymmetricKeyType}`);
+    // Create a promise for token generation (prevents concurrent calls)
+    this.jwtTokenPromise = (async () => {
+      try {
+        // Import the private key using jose library (handles ES256 correctly)
+        const key = await importPKCS8(privateKey, 'ES256');
+        
+        // Create JWT using jose library (handles ES256 signing correctly)
+        const jwt = await new SignJWT({
+          iss: this.config.teamId,
+          iat: now
+        })
+          .setProtectedHeader({
+            alg: 'ES256',
+            kid: this.config.keyId
+          })
+          .setIssuedAt(now)
+          .sign(key);
+
+        // Cache token (valid for 1 hour)
+        this.jwtToken = jwt;
+        this.jwtTokenExpiry = now + 3600;
+        this.jwtTokenPromise = null; // Clear promise cache
+
+        return jwt;
+      } catch (error) {
+        this.jwtTokenPromise = null; // Clear promise cache on error
+        console.error('[APNs] ❌ Error signing JWT:', error);
+        console.error('[APNs] Key preview (first 100 chars):', privateKey.substring(0, 100).replace(/\n/g, '\\n'));
+        throw new Error(`Failed to sign JWT: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
-      
-      // Sign using crypto.sign() with 'ecdsaWithSHA256' algorithm
-      const signatureBuffer = crypto.sign('ecdsaWithSHA256', Buffer.from(signatureInput), keyObject);
-      
-      // Convert to base64url (URL-safe base64: replace + with -, / with _, remove padding)
-      const signature = signatureBuffer.toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '');
-
-      const jwt = `${headerB64}.${payloadB64}.${signature}`;
-      
-      // Cache token (valid for 1 hour)
-      this.jwtToken = jwt;
-      this.jwtTokenExpiry = now + 3600;
-
-      return jwt;
-    } catch (error) {
-      console.error('[APNs] ❌ Error signing JWT:', error);
-      console.error('[APNs] Key preview (first 100 chars):', privateKey.substring(0, 100).replace(/\n/g, '\\n'));
-      throw new Error(`Failed to sign JWT: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    })();
+    
+    return this.jwtTokenPromise;
   }
 
   /**
@@ -205,9 +196,9 @@ class APNsClient {
       };
     }
 
-    try {
-      const jwt = this.generateJWT();
-      const url = `${this.getAPNsURL()}/3/device/${pushToken}`;
+           try {
+             const jwt = await this.generateJWT();
+             const url = `${this.getAPNsURL()}/3/device/${pushToken}`;
 
       // APNs Live Activity payload format
       // Reference: https://developer.apple.com/documentation/activitykit/updating-live-activities-with-activitykit-push-notifications
