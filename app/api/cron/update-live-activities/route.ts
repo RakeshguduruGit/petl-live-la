@@ -83,7 +83,46 @@ export async function GET(request: NextRequest) {
       const isCharging = state.isCharging;
       
       // DIAGNOSTIC: Log session store state
-      console.log(`[Cron] 📊 Session store state for ${activityId.substring(0, 8)}...: soc=${soc}%, watts=${watts}W, timeToFull=${timeToFullMinutes}m, isCharging=${isCharging}, lastUpdated=${new Date(session.lastUpdated).toISOString()}, age=${Math.round((Date.now() - session.lastUpdated) / 1000)}s`);
+      const ageSeconds = Math.round((Date.now() - session.lastUpdated) / 1000);
+      console.log(`[Cron] 📊 Session store state for ${activityId.substring(0, 8)}...: soc=${soc}%, watts=${watts}W, timeToFull=${timeToFullMinutes}m, isCharging=${isCharging}, lastUpdated=${new Date(session.lastUpdated).toISOString()}, age=${ageSeconds}s`);
+
+      // If activity is stale (5+ minutes old), send silent push to wake app to check battery state
+      // This allows the app to detect battery disconnect and send END event
+      if (ageSeconds > 5 * 60 && session.playerId) {
+        console.log(`[Cron] ⚠️ Activity ${activityId.substring(0, 8)}... is stale (age: ${ageSeconds}s) - sending silent push to wake app for battery state check`);
+        try {
+          const wakePayload = {
+            app_id: ONESIGNAL_APP_ID.trim(),
+            include_player_ids: [session.playerId],
+            content_available: true,
+            data: {
+              type: 'cron-stale-check',
+              timestamp: new Date().toISOString(),
+              activityId: activityId,
+              ageSeconds: ageSeconds
+            }
+          };
+          
+          const wakeResponse = await fetch('https://api.onesignal.com/notifications', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Basic ${ONESIGNAL_REST_API_KEY.trim()}`
+            },
+            body: JSON.stringify(wakePayload)
+          });
+          
+          const wakeResult = await wakeResponse.json();
+          if (wakeResponse.ok && wakeResult.id) {
+            console.log(`[Cron] ✅ Silent push sent to wake app for stale check - ID: ${wakeResult.id}`);
+          } else {
+            console.warn(`[Cron] ⚠️ Failed to send stale check push: ${JSON.stringify(wakeResult)}`);
+          }
+        } catch (wakeError) {
+          console.error(`[Cron] ❌ Failed to send stale check push: ${wakeError}`);
+          // Continue with UPDATE attempt - don't fail the cron job
+        }
+      }
 
       try {
         const url = `https://api.onesignal.com/apps/${ONESIGNAL_APP_ID}/live_activities/${activityId}/notifications`;
