@@ -247,7 +247,7 @@ class APNsClient {
           ':scheme': 'https',
           ':authority': apnsHost,
           'authorization': `Bearer ${jwt}`,
-          'apns-topic': this.config.bundleId, // Live Activities use just the bundle ID
+          'apns-topic': `${this.config.bundleId}.pushnotification.liveactivity`, // Live Activities require full topic format
           'apns-push-type': 'liveactivity',
           'apns-priority': '10',
           'content-type': 'application/json',
