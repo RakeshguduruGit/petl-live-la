@@ -262,7 +262,7 @@ class APNsClient {
         });
 
         req.on('response', (headers, flags) => {
-          const status = headers[':status'];
+          const status = String(headers[':status']); // Convert to string for comparison
           const apnsId = headers['apns-id'] as string || 'unknown';
           
           if (status === '200') {
