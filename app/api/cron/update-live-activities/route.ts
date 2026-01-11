@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     console.log(`[OneSignal update] App ID prefix: ${ONESIGNAL_APP_ID.substring(0, 8)}...`);
     console.log(`[OneSignal update] Has REST key: ${!!ONESIGNAL_REST_API_KEY}`);
 
-    const updateResults: Array<{ activityId: string; success: boolean; responseId?: string; error?: any }> = [];
+    const updateResults: Array<{ activityId: string; success: boolean; responseId?: string; method?: 'apns' | 'onesignal'; error?: any }> = [];
     
     // Update each active Live Activity directly via OneSignal
     for (const session of activeActivities) {
@@ -103,7 +103,8 @@ export async function GET(request: NextRequest) {
           updateResults.push({
             activityId: activityId,
             success: true,
-            responseId: apnsResult.responseId || 'apns-direct'
+            responseId: apnsResult.responseId || 'apns-direct',
+            method: 'apns'
           });
           continue; // Skip OneSignal update if APNs succeeded
         } else {
@@ -245,7 +246,8 @@ export async function GET(request: NextRequest) {
           updateResults.push({
             activityId: activityId,
             success: true,
-            responseId: result.id
+            responseId: result.id,
+            method: 'onesignal'
           });
         } else {
           console.error(`[OneSignal update] ❌ Error (${response.status}): ${JSON.stringify(result, null, 2)}`);
@@ -268,8 +270,8 @@ export async function GET(request: NextRequest) {
 
     const successful = updateResults.filter(r => r.success).length;
     const failed = updateResults.filter(r => !r.success).length;
-    const apnsCount = updateResults.filter(r => r.responseId?.includes('apns')).length;
-    const onesignalCount = successful - apnsCount;
+    const apnsCount = updateResults.filter(r => r.method === 'apns' && r.success).length;
+    const onesignalCount = updateResults.filter(r => r.method === 'onesignal' && r.success).length;
 
     console.log(`[Cron] ✅ Completed: ${successful} succeeded, ${failed} failed out of ${activeActivities.length} total`);
     console.log(`[Cron] 📊 Summary: ${apnsCount} via direct APNs, ${onesignalCount} via OneSignal API`);
