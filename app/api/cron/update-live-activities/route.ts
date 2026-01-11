@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     
     console.log(`[SessionStore] Found ${activeActivities.length} active activities`);
     console.log(`[Cron] Found ${activeActivities.length} active activities to update`);
-
+    
     if (activeActivities.length === 0) {
       console.log('[Cron] No active Live Activities to update');
       return NextResponse.json({
@@ -81,6 +81,9 @@ export async function GET(request: NextRequest) {
       const watts = state.watts;
       const timeToFullMinutes = state.timeToFullMinutes;
       const isCharging = state.isCharging;
+      
+      // DIAGNOSTIC: Log session store state
+      console.log(`[Cron] 📊 Session store state for ${activityId.substring(0, 8)}...: soc=${soc}%, watts=${watts}W, timeToFull=${timeToFullMinutes}m, isCharging=${isCharging}, lastUpdated=${new Date(session.lastUpdated).toISOString()}, age=${Math.round((Date.now() - session.lastUpdated) / 1000)}s`);
 
       try {
         const url = `https://api.onesignal.com/apps/${ONESIGNAL_APP_ID}/live_activities/${activityId}/notifications`;
@@ -104,6 +107,16 @@ export async function GET(request: NextRequest) {
           },
           priority: 5
         };
+        
+        // DIAGNOSTIC: Log full payload structure
+        console.log(`[Cron] 📦 Full payload for ${activityId.substring(0, 8)}...:`, JSON.stringify({
+          event: payload.event,
+          name: payload.name,
+          priority: payload.priority,
+          push_token_length: payload.push_token?.length || 0,
+          push_token_prefix: payload.push_token?.substring(0, 8) || 'MISSING',
+          event_updates: payload.event_updates
+        }, null, 2));
 
         // Safety check: Ensure push_token is included and valid
         if (!payload.push_token || payload.push_token.length < 32) {
@@ -152,17 +165,25 @@ export async function GET(request: NextRequest) {
         const result = await response.json();
         console.log(`[OneSignal update] Response: ${response.status} ${response.statusText}`);
         console.log(`[OneSignal update] Response body: ${JSON.stringify(result)}`);
+        // Log response headers (Headers is iterable but not easily JSON-ifiable)
+        const responseHeaders: Record<string, string> = {};
+        response.headers.forEach((value, key) => {
+          responseHeaders[key] = value;
+        });
+        console.log(`[OneSignal update] 🔍 Response headers:`, JSON.stringify(responseHeaders, null, 2));
 
         if (response.ok) {
-          console.log(`[OneSignal update] Success - Response ID: ${result.id || 'unknown'}`);
-          console.log(`[Cron] Updated activityId=${activityId.substring(0, 8)}... soc=${soc}%`);
+          console.log(`[OneSignal update] ✅ Success - Response ID: ${result.id || 'unknown'}`);
+          console.log(`[Cron] ✅ Updated activityId=${activityId.substring(0, 8)}... soc=${soc}%, watts=${watts}W, timeToFull=${timeToFullMinutes}m, isCharging=${isCharging}`);
+          console.log(`[Cron] 💡 OneSignal accepted the UPDATE - check dashboard to see if it shows "Delivered" or "No Recipients"`);
           updateResults.push({
             activityId: activityId,
             success: true,
             responseId: result.id
           });
         } else {
-          console.error(`[OneSignal update] ❌ Error: ${JSON.stringify(result, null, 2)}`);
+          console.error(`[OneSignal update] ❌ Error (${response.status}): ${JSON.stringify(result, null, 2)}`);
+          console.error(`[Cron] ❌ Failed to update ${activityId.substring(0, 8)}... - OneSignal API rejected the request`);
           updateResults.push({
             activityId: activityId,
             success: false,
@@ -182,7 +203,10 @@ export async function GET(request: NextRequest) {
     const successful = updateResults.filter(r => r.success).length;
     const failed = updateResults.filter(r => !r.success).length;
 
-    console.log(`[Cron] Completed: ${successful} succeeded, ${failed} failed out of ${activeActivities.length} total`);
+    console.log(`[Cron] ✅ Completed: ${successful} succeeded, ${failed} failed out of ${activeActivities.length} total`);
+    console.log(`[Cron] 📊 Summary: ${successful} UPDATE events sent to OneSignal API`);
+    console.log(`[Cron] 💡 Note: OneSignal API returns 201 Created, but check dashboard for "Delivered" vs "No Recipients" status`);
+    console.log(`[Cron] 🔍 If showing "No Recipients", the activity may not be registered with OneSignal SDK, or UPDATE events may not work for locally-created activities`);
 
     return NextResponse.json({
       success: true,
