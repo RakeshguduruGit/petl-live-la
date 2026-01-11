@@ -2,7 +2,7 @@
 
 ## ✅ Environment Variables Added
 All 5 APNs environment variables have been added to Vercel:
-- `APNS_KEY_ID` = `G32XLR8935`
+- `APNS_KEY_ID` = `7SH93SA6Y7`
 - `APNS_TEAM_ID` = `MFBFYXVNCP`
 - `APNS_KEY` = (Added - verify full value)
 - `APNS_BUNDLE_ID` = `com.gopetl.PETL`
@@ -50,7 +50,7 @@ lnfPFcXd
 ## After Redeploy:
 
 1. **Check Logs** (in Vercel Dashboard → Logs tab):
-   - Look for: `[APNs] Configuration loaded - Key ID: G32XLR89..., Team ID: MFBFYXVN..., Environment: production`
+   - Look for: `[APNs] Configuration loaded - Key ID: 7SH93SA6..., Team ID: MFBFYXVN..., Environment: production`
    - If you see: `[APNs] Missing APNs credentials`, the APNS_KEY might be incomplete
 
 2. **Wait for Cron Job** (runs every 3 minutes):

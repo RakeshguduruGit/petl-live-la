@@ -22,39 +22,30 @@ The push token is:
 - Same token works with OneSignal API
 - Device receives updates successfully via OneSignal
 
-## ⚠️ CRITICAL FINDING: Key ID Mismatch
+## ✅ Key ID Verified
 
 From Apple Developer portal:
-- **Key shown**: "PETLOneSignalKey2025"
-- **Key ID in portal**: `G32XLR8935`
-- **Key ID in Vercel logs**: `7SH93SA6...`
+- **Key name**: "PETL APNs Direct Key"
+- **Key ID**: `7SH93SA6Y7`
+- **Key ID in Vercel logs**: `7SH93SA6...` ✅ Matches!
 
-**These are different keys!**
-
-The key shown in the portal is:
+The key is:
 - ✅ Enabled for APNs: "Team scoped (All topics) [Sandbox & Production]"
+- ✅ Created specifically for direct APNs: "APNs authentication key for direct Live Activity updates"
 - ✅ Should work for both sandbox and production environments
-- ❌ But we're using a different Key ID (`7SH93SA6...`) in Vercel
+- ✅ Key ID matches what's configured in Vercel
 
 ## Possible Causes
 
-### 1. Wrong Key ID in Vercel (Most Likely)
+### 1. Key File Mismatch (Most Likely)
 
-**Issue**: The `APNS_KEY_ID` in Vercel environment variables might be set to the wrong key ID.
-
-**Check**:
-- Verify `APNS_KEY_ID` in Vercel is set to `G32XLR8935` (the key shown in portal)
-- If it's set to `7SH93SA6...`, update it to match the key you have access to
-- Ensure the `APNS_KEY` (the .p8 file content) matches the key with ID `G32XLR8935`
-
-### 2. Key File Mismatch
-
-**Issue**: The `APNS_KEY` (p8 file content) in Vercel might be from a different key than the one with ID `G32XLR8935`.
+**Issue**: The `APNS_KEY` (p8 file content) in Vercel might not match the key with ID `7SH93SA6Y7`.
 
 **Solution**:
-- Download the key "PETLOneSignalKey2025" (ID: `G32XLR8935`) from Apple Developer portal
-- Update `APNS_KEY` in Vercel with the correct .p8 file content
-- Update `APNS_KEY_ID` in Vercel to `G32XLR8935`
+- Verify you downloaded the correct key file: "PETL APNs Direct Key" (ID: `7SH93SA6Y7`)
+- The download button is grayed out (already downloaded or download disabled after first download)
+- If you don't have the file, you'll need to create a new key or contact Apple Support
+- Update `APNS_KEY` in Vercel with the correct .p8 file content for key ID `7SH93SA6Y7`
 
 ### 3. Environment Mismatch
 
@@ -95,15 +86,16 @@ Since OneSignal works with the same token, this is unlikely to be the issue.
 
 ### Immediate Steps
 
-1. **Verify Key ID in Vercel**:
-   - Go to Vercel Dashboard → Project Settings → Environment Variables
-   - Check `APNS_KEY_ID` - should be `G32XLR8935` (not `7SH93SA6...`)
-   - If wrong, update to match the key shown in Apple Developer portal
+1. **Verify Key File**:
+   - The key "PETL APNs Direct Key" (ID: `7SH93SA6Y7`) is already created
+   - Download button is grayed out (keys can only be downloaded once)
+   - If you don't have the .p8 file, check your Downloads folder or backup
+   - If the file is missing, you'll need to create a new key (the old one cannot be re-downloaded)
 
-2. **Verify Key File**:
-   - Download the key "PETLOneSignalKey2025" (ID: `G32XLR8935`) from Apple Developer portal
-   - Update `APNS_KEY` in Vercel with the correct .p8 file content
-   - Ensure the .p8 file matches the key ID `G32XLR8935`
+2. **Verify Key ID in Vercel**:
+   - Go to Vercel Dashboard → Project Settings → Environment Variables
+   - Check `APNS_KEY_ID` - should be `7SH93SA6Y7` ✅
+   - Verify `APNS_KEY` contains the correct .p8 file content for this key ID
 
 3. **Redeploy**:
    - After updating environment variables, redeploy the Vercel project
@@ -123,10 +115,10 @@ Since OneSignal updates are working:
 
 ### Next Steps
 
-1. ✅ Verify `APNS_KEY_ID` in Vercel matches `G32XLR8935`
-2. ✅ Download and update `APNS_KEY` with the correct .p8 file content
-3. ✅ Redeploy and check logs for correct Key ID
-4. ✅ Test direct APNs after fixing the key ID mismatch
+1. ✅ Verify `APNS_KEY_ID` in Vercel matches `7SH93SA6Y7` (already correct)
+2. ⚠️ Verify `APNS_KEY` contains the correct .p8 file content for key ID `7SH93SA6Y7`
+3. ⚠️ If key file is missing, create a new key (old keys cannot be re-downloaded)
+4. ✅ Redeploy and test direct APNs after verifying key file
 
 ## Current Implementation
 

@@ -2,8 +2,8 @@
 
 ## ✅ Verified Values:
 
-### 1. APNS_KEY_ID: `G32XLR8935`
-- **Source:** Apple Developer Portal - Key "PETLOneSignalKey2025"
+### 1. APNS_KEY_ID: `7SH93SA6Y7`
+- **Source:** Apple Developer Portal - Key "PETL APNs Direct Key"
 - **Format:** 10 alphanumeric characters
 - **Status:** ✅ CORRECT
 - **Location:** Apple Developer portal → Keys → Key ID
@@ -23,7 +23,7 @@
 - **Status:** ✅ CORRECT (production is default and recommended)
 
 ### 5. APNS_KEY: ✅ FILE VERIFIED
-**File Location:** Download from Apple Developer Portal - Key "PETLOneSignalKey2025" (ID: G32XLR8935)
+**File Location:** Download from Apple Developer Portal - Key "PETL APNs Direct Key" (ID: 7SH93SA6Y7)
 
 **File Format Verification:**
 - ✅ File exists
@@ -60,7 +60,7 @@ After deployment, check Vercel logs for:
 
 **✅ SUCCESS - APNs Configured:**
 ```
-[APNs] Configuration loaded - Key ID: G32XLR89..., Team ID: MFBFYXVN..., Environment: production
+[APNs] Configuration loaded - Key ID: 7SH93SA6..., Team ID: MFBFYXVN..., Environment: production
 ```
 
 **❌ FAILURE - APNs Not Configured:**
@@ -85,7 +85,7 @@ When the cron job runs (every 3 minutes), you should see:
 
 | Variable | Expected Value | Status |
 |----------|---------------|--------|
-| `APNS_KEY_ID` | `G32XLR8935` | ✅ Verified |
+| `APNS_KEY_ID` | `7SH93SA6Y7` | ✅ Verified |
 | `APNS_TEAM_ID` | `MFBFYXVNCP` | ✅ Verified |
 | `APNS_BUNDLE_ID` | `com.gopetl.PETL` | ✅ Verified |
 | `APNS_ENVIRONMENT` | `production` | ✅ Verified |

@@ -3,8 +3,8 @@
 ## Expected Values:
 
 ### 1. APNS_KEY_ID
-**Expected:** `G32XLR8935`
-- Source: Apple Developer Portal - Key "PETLOneSignalKey2025"
+**Expected:** `7SH93SA6Y7`
+- Source: Apple Developer Portal - Key "PETL APNs Direct Key"
 - Format: 10 characters (alphanumeric)
 - Status: ✅ Matches Apple Developer portal
 
@@ -24,7 +24,7 @@ DgPKFvCNPYM5Y8NDnEO6rAdpltzF7a81K6FW9Y7tytTb9j5yaUlZVBbn9yBkeh1o
 lnfPFcXd
 -----END PRIVATE KEY-----
 ```
-- Source: Download from Apple Developer Portal - Key "PETLOneSignalKey2025" (ID: G32XLR8935)
+- Source: Download from Apple Developer Portal - Key "PETL APNs Direct Key" (ID: 7SH93SA6Y7)
 - Format: PEM format (includes BEGIN/END lines)
 - Length: 6 lines total (1 BEGIN, 4 content lines, 1 END)
 - Status: ⚠️ Verify in Vercel that full value is present (not truncated)
@@ -58,7 +58,7 @@ lnfPFcXd
    - If truncated, re-enter the full value
 
 3. **After Deployment - Check Logs:**
-   - Look for: `[APNs] Configuration loaded - Key ID: G32XLR89..., Team ID: MFBFYXVN..., Environment: production`
+   - Look for: `[APNs] Configuration loaded - Key ID: 7SH93SA6..., Team ID: MFBFYXVN..., Environment: production`
    - This confirms all variables are correctly loaded
 
 ## Quick Verification Commands:
@@ -66,12 +66,12 @@ lnfPFcXd
 You can verify the .p8 file locally:
 ```bash
 # After downloading the key from Apple Developer Portal, check:
-ls -la ~/Downloads/AuthKey_G32XLR8935.p8
+ls -la ~/Downloads/AuthKey_7SH93SA6Y7.p8
 
 # View file (first and last lines)
-head -1 ~/Downloads/AuthKey_G32XLR8935.p8
-tail -1 ~/Downloads/AuthKey_G32XLR8935.p8
+head -1 ~/Downloads/AuthKey_7SH93SA6Y7.p8
+tail -1 ~/Downloads/AuthKey_7SH93SA6Y7.p8
 
 # Count lines (should be 6 or more)
-wc -l ~/Downloads/AuthKey_G32XLR8935.p8
+wc -l ~/Downloads/AuthKey_7SH93SA6Y7.p8
 ```
