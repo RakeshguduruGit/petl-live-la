@@ -207,6 +207,56 @@ export async function GET(request: NextRequest) {
     console.log(`[Cron] 📊 Summary: ${successful} UPDATE events sent to OneSignal API`);
     console.log(`[Cron] 💡 Note: OneSignal API returns 201 Created, but check dashboard for "Delivered" vs "No Recipients" status`);
     console.log(`[Cron] 🔍 If showing "No Recipients", the activity may not be registered with OneSignal SDK, or UPDATE events may not work for locally-created activities`);
+    
+    // Send silent push to wake iOS app so it can log what's happening
+    // This allows us to see iOS logs in Vercel even when app is closed
+    if (successful > 0 && activeActivities.length > 0) {
+      try {
+        const playerIds = activeActivities
+          .map(s => s.playerId)
+          .filter((id): id is string => !!id && id.trim().length > 0);
+        
+        if (playerIds.length > 0) {
+          console.log(`[Cron] 📱 Sending silent push to wake iOS app for logging (${playerIds.length} players)`);
+          
+          const silentPushPayload = {
+            app_id: ONESIGNAL_APP_ID,
+            include_player_ids: playerIds,
+            content_available: true,
+            apns_push_type_override: 'background',
+            ios_interruption_level: 'passive',
+            data: {
+              type: 'cron-update-log',
+              timestamp: new Date().toISOString(),
+              updateCount: successful,
+              activityCount: activeActivities.length
+            }
+          };
+          
+          const pushResponse = await fetch('https://api.onesignal.com/notifications', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`
+            },
+            body: JSON.stringify(silentPushPayload)
+          });
+          
+          const pushResult = await pushResponse.json();
+          if (pushResponse.ok && pushResult.id) {
+            console.log(`[Cron] ✅ Silent push sent to wake iOS app - ID: ${pushResult.id}`);
+            console.log(`[Cron] 📱 iOS app should wake briefly and log UPDATE event status`);
+          } else {
+            console.warn(`[Cron] ⚠️ Silent push failed: ${JSON.stringify(pushResult)}`);
+          }
+        } else {
+          console.log(`[Cron] ⚠️ No playerIds available - cannot send silent push to wake iOS app`);
+        }
+      } catch (pushError) {
+        console.error(`[Cron] ❌ Failed to send silent push: ${pushError}`);
+        // Don't fail the cron job if silent push fails
+      }
+    }
 
     return NextResponse.json({
       success: true,
