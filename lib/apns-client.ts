@@ -221,16 +221,86 @@ class APNsClient {
       console.log(`[APNs] URL: ${url}`);
       console.log(`[APNs] Payload:`, JSON.stringify(apnsPayload, null, 2));
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${jwt}`,
-          'apns-topic': `${this.config.bundleId}.pushnotification.liveactivity`, // Live Activities topic format
+      // Use HTTP/2 client for APNs (APNs requires HTTP/2)
+      const apnsUrl = new URL(url);
+      const apnsHost = apnsUrl.hostname;
+      const apnsPath = apnsUrl.pathname;
+
+      // Create HTTP/2 client connection
+      const client = http2.connect(`https://${apnsHost}`);
+      
+      return new Promise<{ success: boolean; responseId?: string; error?: string }>((resolve, reject) => {
+        client.on('error', (err) => {
+          console.error('[APNs] ❌ HTTP/2 client connection error:', err);
+          client.close();
+          resolve({
+            success: false,
+            error: `HTTP/2 connection error: ${err.message}`
+          });
+        });
+
+        const payloadString = JSON.stringify(apnsPayload);
+        
+        const req = client.request({
+          ':method': 'POST',
+          ':path': apnsPath,
+          ':scheme': 'https',
+          ':authority': apnsHost,
+          'authorization': `Bearer ${jwt}`,
+          'apns-topic': `${this.config.bundleId}.pushnotification.liveactivity`,
           'apns-push-type': 'liveactivity',
           'apns-priority': '10',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(apnsPayload)
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(payloadString).toString()
+        });
+
+        req.setEncoding('utf8');
+        
+        let responseData = '';
+        req.on('data', (chunk) => {
+          responseData += chunk;
+        });
+
+        req.on('response', (headers, flags) => {
+          const status = headers[':status'];
+          const apnsId = headers['apns-id'] as string || 'unknown';
+          
+          if (status === '200') {
+            console.log(`[APNs] ✅ Live Activity update sent successfully - APNs ID: ${apnsId}`);
+            req.on('end', () => {
+              client.close();
+              resolve({
+                success: true,
+                responseId: apnsId
+              });
+            });
+          } else {
+            console.error(`[APNs] ❌ Failed to send Live Activity update - Status: ${status}`);
+            console.error(`[APNs] Response headers:`, JSON.stringify(headers, null, 2));
+            
+            req.on('end', () => {
+              console.error(`[APNs] Error response: ${responseData}`);
+              client.close();
+              resolve({
+                success: false,
+                error: `APNs error: ${status} - ${responseData || 'No error details'}`
+              });
+            });
+          }
+        });
+
+        req.on('error', (err) => {
+          console.error('[APNs] ❌ Request error:', err);
+          client.close();
+          resolve({
+            success: false,
+            error: `Request error: ${err.message}`
+          });
+        });
+
+        // Send the payload
+        req.write(payloadString);
+        req.end();
       });
 
       if (response.ok) {
