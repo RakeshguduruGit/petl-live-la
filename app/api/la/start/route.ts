@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
     console.log(`[LA/START] OneSignal response:`, JSON.stringify(result, null, 2));
 
     // Store activity in session store for cron job to process
-    storeActivity(
+    await storeActivity(
       activityId,
       playerId,
       laPushToken,

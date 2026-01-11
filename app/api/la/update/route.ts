@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   
   // Get push_token from session store (required for OneSignal to deliver update)
   // Fallback: Check if iOS app sent push_token in request (for activities started before START fix)
-  const existingActivity = getActivity(incoming.activityId);
+  const existingActivity = await getActivity(incoming.activityId);
   let pushToken = existingActivity?.pushToken;
   
   // Fallback: If not in session store, check if iOS app sent it in the request
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     // Store it in session store for future updates
     const playerId = incoming.meta?.playerId;
     if (playerId) {
-      storeActivity(incoming.activityId, playerId, pushToken, state);
+      await storeActivity(incoming.activityId, playerId, pushToken, state);
       console.log(`[Update:${requestId}] ✅ Stored activity in session store from UPDATE request`);
     }
   }
@@ -118,10 +118,10 @@ export async function POST(request: Request) {
   // Update activity state in session store for cron-based direct updates
   if (result.ok) {
     // Try to update existing activity state
-    const existing = getActivity(incoming.activityId);
+    const existing = await getActivity(incoming.activityId);
     if (existing) {
       // Activity exists - just update the state
-      updateActivityState(incoming.activityId, state);
+      await updateActivityState(incoming.activityId, state);
       console.log(`[Update:${requestId}] ✅ Updated session store with latest state`);
     } else {
       // Activity doesn't exist in store - try to retrieve pushToken from OneSignal player tags
@@ -146,7 +146,7 @@ export async function POST(request: Request) {
             
             if (pushToken) {
               // Found pushToken - create session store entry
-              storeActivity(incoming.activityId, playerId, pushToken, state);
+              await storeActivity(incoming.activityId, playerId, pushToken, state);
               console.log(`[Update:${requestId}] ✅ Retrieved pushToken from OneSignal and created session store entry for cron job`);
             } else {
               console.log(`[Update:${requestId}] ⚠️ Player found but no 'la_push_token' tag. Activity was likely started before START endpoint was fixed. To enable cron updates, end and restart the Live Activity.`);

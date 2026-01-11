@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     console.log('[Cron] Starting direct Live Activity updates...');
 
     // Get active activities from session store (stored when START/UPDATE endpoints are called)
-    const activeActivities = getAllActiveActivities();
+    const activeActivities = await getAllActiveActivities();
     
     console.log(`[SessionStore] Found ${activeActivities.length} active activities`);
     console.log(`[Cron] Found ${activeActivities.length} active activities to update`);
