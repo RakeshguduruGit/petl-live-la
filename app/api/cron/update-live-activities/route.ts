@@ -1,10 +1,12 @@
 // Next.js App Router API Route: Update Live Activities directly via OneSignal
 // This is called by Vercel Cron every 3 minutes
+import { getAPNsClient } from '@/lib/apns-client';
 // Directly updates Live Activities via OneSignal API using stored push tokens
 // Reference: https://documentation.onesignal.com/docs/en/live-activities-developer-setup
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllActiveActivities } from '@/lib/session-store';
+import { getAPNsClient } from '@/lib/apns-client';
 
 export async function GET(request: NextRequest) {
   // Security: Verify this is actually a cron job (not a random user request)
@@ -85,6 +87,32 @@ export async function GET(request: NextRequest) {
       // DIAGNOSTIC: Log session store state
       const ageSeconds = Math.round((Date.now() - session.lastUpdated) / 1000);
       console.log(`[Cron] 📊 Session store state for ${activityId.substring(0, 8)}...: soc=${soc}%, watts=${watts}W, timeToFull=${timeToFullMinutes}m, isCharging=${isCharging}, lastUpdated=${new Date(session.lastUpdated).toISOString()}, age=${ageSeconds}s`);
+
+      // Try direct APNs update first (if configured)
+      const apnsClient = getAPNsClient();
+      if (apnsClient.isConfigured()) {
+        console.log(`[Cron] 🍎 Attempting direct APNs update for ${activityId.substring(0, 8)}...`);
+        const apnsResult = await apnsClient.sendLiveActivityUpdate(pushToken, {
+          soc,
+          watts,
+          timeToFullMinutes,
+          isCharging
+        });
+        
+        if (apnsResult.success) {
+          console.log(`[Cron] ✅ Direct APNs update succeeded for ${activityId.substring(0, 8)}... - APNs ID: ${apnsResult.responseId}`);
+          updateResults.push({
+            activityId: activityId,
+            success: true,
+            responseId: apnsResult.responseId || 'apns-direct'
+          });
+          continue; // Skip OneSignal update if APNs succeeded
+        } else {
+          console.warn(`[Cron] ⚠️ Direct APNs update failed for ${activityId.substring(0, 8)}...: ${apnsResult.error}`);
+          console.log(`[Cron] 🔄 Falling back to OneSignal API for ${activityId.substring(0, 8)}...`);
+          // Continue to OneSignal update as fallback
+        }
+      }
 
       // If activity is stale (5+ minutes old), send silent push to wake app to check battery state
       // This allows the app to detect battery disconnect and send END event
@@ -241,11 +269,21 @@ export async function GET(request: NextRequest) {
 
     const successful = updateResults.filter(r => r.success).length;
     const failed = updateResults.filter(r => !r.success).length;
+    const apnsCount = updateResults.filter(r => r.responseId?.includes('apns')).length;
+    const onesignalCount = successful - apnsCount;
 
     console.log(`[Cron] ✅ Completed: ${successful} succeeded, ${failed} failed out of ${activeActivities.length} total`);
-    console.log(`[Cron] 📊 Summary: ${successful} UPDATE events sent to OneSignal API`);
+    console.log(`[Cron] 📊 Summary: ${apnsCount} via direct APNs, ${onesignalCount} via OneSignal API`);
+    if (apnsCount > 0) {
+      console.log(`[Cron] 🍎 Direct APNs updates enabled and working`);
+    } else if (getAPNsClient().isConfigured()) {
+      console.log(`[Cron] ⚠️ Direct APNs is configured but no updates were sent via APNs (all used OneSignal fallback)`);
+    } else {
+      console.log(`[Cron] 💡 Direct APNs not configured - set APNS_KEY_ID, APNS_TEAM_ID, and APNS_KEY environment variables to enable`);
+    }
     console.log(`[Cron] 💡 Note: OneSignal API returns 201 Created, but check dashboard for "Delivered" vs "No Recipients" status`);
-    console.log(`[Cron] 🔍 If showing "No Recipients", the activity may not be registered with OneSignal SDK, or UPDATE events may not work for locally-created activities`);
+    console.log(`[Cron] 🔍 Direct APNs should work for locally-created activities, unlike OneSignal UPDATE events`);
+    console.log(`[Cron] 🔍 Direct APNs should work for locally-created activities, unlike OneSignal UPDATE events`);
     
     // Send silent push to wake iOS app so it can log what's happening
     // This allows us to see iOS logs in Vercel even when app is closed
