@@ -6,7 +6,6 @@ import { getAPNsClient } from '@/lib/apns-client';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllActiveActivities } from '@/lib/session-store';
-import { getAPNsClient } from '@/lib/apns-client';
 
 export async function GET(request: NextRequest) {
   // Security: Verify this is actually a cron job (not a random user request)
@@ -282,7 +281,6 @@ export async function GET(request: NextRequest) {
       console.log(`[Cron] 💡 Direct APNs not configured - set APNS_KEY_ID, APNS_TEAM_ID, and APNS_KEY environment variables to enable`);
     }
     console.log(`[Cron] 💡 Note: OneSignal API returns 201 Created, but check dashboard for "Delivered" vs "No Recipients" status`);
-    console.log(`[Cron] 🔍 Direct APNs should work for locally-created activities, unlike OneSignal UPDATE events`);
     console.log(`[Cron] 🔍 Direct APNs should work for locally-created activities, unlike OneSignal UPDATE events`);
     
     // Send silent push to wake iOS app so it can log what's happening
