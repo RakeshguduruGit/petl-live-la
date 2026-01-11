@@ -22,6 +22,7 @@
  */
 
 import crypto from 'crypto';
+import http2 from 'http2';
 import { SignJWT, importPKCS8 } from 'jose';
 
 interface APNsConfig {
