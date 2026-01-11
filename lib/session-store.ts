@@ -9,9 +9,10 @@
 
 import { Redis } from '@upstash/redis';
 
+// Upstash Redis via Vercel Marketplace provides KV_REST_API_URL and KV_REST_API_TOKEN
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
 export interface ActivitySession {
