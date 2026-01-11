@@ -197,9 +197,9 @@ class APNsClient {
       };
     }
 
-           try {
-             const jwt = await this.generateJWT();
-             const url = `${this.getAPNsURL()}/3/device/${pushToken}`;
+    try {
+      const jwt = await this.generateJWT();
+      const url = `${this.getAPNsURL()}/3/device/${pushToken}`;
 
       // APNs Live Activity payload format
       // Reference: https://developer.apple.com/documentation/activitykit/updating-live-activities-with-activitykit-push-notifications
@@ -302,6 +302,23 @@ class APNsClient {
         req.write(payloadString);
         req.end();
       });
+    } catch (error) {
+      console.error('[APNs] ❌ Exception sending Live Activity update:', error);
+      
+      // Log more details about the error
+      if (error && typeof error === 'object' && 'cause' in error) {
+        const cause = (error as any).cause;
+        console.error('[APNs] Error cause:', cause);
+        if (cause && typeof cause === 'object' && 'code' in cause) {
+          console.error('[APNs] Error code:', cause.code);
+        }
+      }
+      
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
   }
 
   /**
