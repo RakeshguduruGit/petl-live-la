@@ -247,7 +247,7 @@ class APNsClient {
           ':scheme': 'https',
           ':authority': apnsHost,
           'authorization': `Bearer ${jwt}`,
-          'apns-topic': `${this.config.bundleId}.pushnotification.liveactivity`, // Live Activities require full topic format
+          'apns-topic': `${this.config.bundleId}.push-type.liveactivity`, // Live Activities require .push-type.liveactivity format per Apple docs
           'apns-push-type': 'liveactivity',
           'apns-priority': '10',
           'content-type': 'application/json',
